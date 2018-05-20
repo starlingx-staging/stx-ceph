@@ -568,8 +568,6 @@ int Client::init()
 	       << cpp_strerror(-ret) << dendl;
   }
 
-  populate_metadata();
-
   client_lock.Lock();
   initialized = true;
   client_lock.Unlock();
@@ -1934,7 +1932,7 @@ MetaSession *Client::_get_or_open_mds_session(mds_rank_t mds)
  * Populate a map of strings with client-identifying metadata,
  * such as the hostname.  Call this once at initialization.
  */
-void Client::populate_metadata()
+void Client::populate_metadata(const std::string &mount_root)
 {
   // Hostname
   struct utsname u;
@@ -1950,7 +1948,9 @@ void Client::populate_metadata()
   metadata["entity_id"] = cct->_conf->name.get_id();
 
   // Our mount position
-  metadata["root"] = cct->_conf->client_mountpoint;
+  if (!mount_root.empty()) {
+    metadata["root"] = mount_root;
+  }
 
   // Ceph version
   metadata["ceph_version"] = pretty_version_to_str();
@@ -4741,6 +4741,9 @@ void Client::handle_cap_flushsnap_ack(MetaSession *session, Inode *in, MClientCa
     } else {
       ldout(cct, 5) << "handle_cap_flushedsnap mds." << mds << " flushed snap follows " << follows
 	      << " on " << *in << dendl;
+      InodeRef tmp_ref;
+      if (in->get_num_ref() == 1)
+	tmp_ref = in; // make sure inode not get freed while erasing item from in->cap_snaps
       in->cap_snaps.erase(follows);
       if (in->flushing_caps == 0 && in->cap_snaps.empty())
 	in->flushing_cap_item.remove_myself();
@@ -5449,6 +5452,12 @@ int Client::mds_command(
     return -ENOENT;
   }
 
+  if (metadata.empty()) {
+    // We are called on an unmounted client, so metadata
+    // won't be initialized yet.
+    populate_metadata("");
+  }
+
   // Send commands to targets
   C_GatherBuilder gather(cct, onfinish);
   for (const auto target_gid : non_laggy) {
@@ -5509,6 +5518,8 @@ void Client::handle_command_reply(MCommandReply *m)
     op.on_finish->complete(m->r);
   }
 
+  commands.erase(opiter);
+
   m->put();
 }
 
@@ -5553,9 +5564,12 @@ int Client::mount(const std::string &mount_root, bool require_mds)
     }
   }
 
+  populate_metadata(mount_root.empty() ? "/" : mount_root);
+
   filepath fp(CEPH_INO_ROOT);
-  if (!mount_root.empty())
+  if (!mount_root.empty()) {
     fp = filepath(mount_root.c_str());
+  }
   while (true) {
     MetaRequest *req = new MetaRequest(CEPH_MDS_OP_GETATTR);
     req->set_filepath(fp);
@@ -5874,7 +5888,7 @@ int Client::_lookup(Inode *dir, const string& dname, int mask,
 
   if (dname == "..") {
     if (dir->dn_set.empty())
-      r = -ENOENT;
+      *target = dir;
     else
       *target = dir->get_first_parent()->dir->parent_inode; //dirs can't be hard-linked
     goto done;
@@ -6089,31 +6103,35 @@ int Client::link(const char *relexisting, const char *relpath)
   tout(cct) << relpath << std::endl;
 
   filepath existing(relexisting);
-  filepath path(relpath);
-  string name = path.last_dentry();
-  path.pop_dentry();
 
   InodeRef in, dir;
   int r = path_walk(existing, &in);
   if (r < 0)
-    goto out;
+    return r;
+  if (std::string(relpath) == "/") {
+    r = -EEXIST;
+    return r;
+  }
+  filepath path(relpath);
+  string name = path.last_dentry();
+  path.pop_dentry();
+
   r = path_walk(path, &dir);
   if (r < 0)
-    goto out;
+    return r;
   if (cct->_conf->client_permissions) {
     if (S_ISDIR(in->mode)) {
       r = -EPERM;
-      goto out;
+      return r;
     }
     r = may_hardlink(in.get());
     if (r < 0)
-      goto out;
+      return r;
     r = may_create(dir.get());
     if (r < 0)
-      goto out;
+      return r;
   }
   r = _link(in.get(), dir.get(), name.c_str());
- out:
   return r;
 }
 
@@ -6122,6 +6140,9 @@ int Client::unlink(const char *relpath)
   Mutex::Locker lock(client_lock);
   tout(cct) << "unlink" << std::endl;
   tout(cct) << relpath << std::endl;
+
+  if (std::string(relpath) == "/")
+    return -EISDIR;
 
   filepath path(relpath);
   string name = path.last_dentry();
@@ -6144,6 +6165,9 @@ int Client::rename(const char *relfrom, const char *relto)
   tout(cct) << "rename" << std::endl;
   tout(cct) << relfrom << std::endl;
   tout(cct) << relto << std::endl;
+
+  if (std::string(relfrom) == "/" || std::string(relto) == "/")
+    return -EBUSY;
 
   filepath from(relfrom);
   filepath to(relto);
@@ -6182,6 +6206,9 @@ int Client::mkdir(const char *relpath, mode_t mode)
   tout(cct) << relpath << std::endl;
   tout(cct) << mode << std::endl;
   ldout(cct, 10) << "mkdir: " << relpath << dendl;
+
+  if (std::string(relpath) == "/")
+    return -EEXIST;
 
   filepath path(relpath);
   string name = path.last_dentry();
@@ -6255,6 +6282,10 @@ int Client::rmdir(const char *relpath)
   Mutex::Locker lock(client_lock);
   tout(cct) << "rmdir" << std::endl;
   tout(cct) << relpath << std::endl;
+
+  if (std::string(relpath) == "/")
+    return -EBUSY;
+
   filepath path(relpath);
   string name = path.last_dentry();
   path.pop_dentry();
@@ -6277,6 +6308,10 @@ int Client::mknod(const char *relpath, mode_t mode, dev_t rdev)
   tout(cct) << relpath << std::endl;
   tout(cct) << mode << std::endl;
   tout(cct) << rdev << std::endl;
+
+  if (std::string(relpath) == "/")
+    return -EEXIST;
+
   filepath path(relpath);
   string name = path.last_dentry();
   path.pop_dentry();
@@ -6300,6 +6335,9 @@ int Client::symlink(const char *target, const char *relpath)
   tout(cct) << "symlink" << std::endl;
   tout(cct) << target << std::endl;
   tout(cct) << relpath << std::endl;
+
+  if (std::string(relpath) == "/")
+    return -EEXIST;
 
   filepath path(relpath);
   string name = path.last_dentry();
@@ -6428,15 +6466,8 @@ int Client::_do_setattr(Inode *in, struct stat *attr, int mask, int uid, int gid
   }
 
   if (in->caps_issued_mask(CEPH_CAP_AUTH_EXCL)) {
-    if (mask & CEPH_SETATTR_MODE) {
-      in->ctime = ceph_clock_now(cct);
-      in->cap_dirtier_uid = uid;
-      in->cap_dirtier_gid = gid;
-      in->mode = (in->mode & ~07777) | (attr->st_mode & 07777);
-      mark_caps_dirty(in, CEPH_CAP_AUTH_EXCL);
-      mask &= ~CEPH_SETATTR_MODE;
-      ldout(cct,10) << "changing mode to " << attr->st_mode << dendl;
-    }
+    bool kill_sguid = false;
+
     if (mask & CEPH_SETATTR_UID) {
       in->ctime = ceph_clock_now(cct);
       in->cap_dirtier_uid = uid;
@@ -6444,6 +6475,7 @@ int Client::_do_setattr(Inode *in, struct stat *attr, int mask, int uid, int gid
       in->uid = attr->st_uid;
       mark_caps_dirty(in, CEPH_CAP_AUTH_EXCL);
       mask &= ~CEPH_SETATTR_UID;
+      kill_sguid = true;
       ldout(cct,10) << "changing uid to " << attr->st_uid << dendl;
     }
     if (mask & CEPH_SETATTR_GID) {
@@ -6453,7 +6485,24 @@ int Client::_do_setattr(Inode *in, struct stat *attr, int mask, int uid, int gid
       in->gid = attr->st_gid;
       mark_caps_dirty(in, CEPH_CAP_AUTH_EXCL);
       mask &= ~CEPH_SETATTR_GID;
+      kill_sguid = true;
       ldout(cct,10) << "changing gid to " << attr->st_gid << dendl;
+    }
+
+    if (mask & CEPH_SETATTR_MODE) {
+      in->ctime = ceph_clock_now(cct);
+      in->cap_dirtier_uid = uid;
+      in->cap_dirtier_gid = gid;
+      in->mode = (in->mode & ~07777) | (attr->st_mode & 07777);
+      mark_caps_dirty(in, CEPH_CAP_AUTH_EXCL);
+      mask &= ~CEPH_SETATTR_MODE;
+      ldout(cct,10) << "changing mode to " << attr->st_mode << dendl;
+    } else if (kill_sguid && S_ISREG(in->mode)) {
+      /* Must squash the any setuid/setgid bits with an ownership change */
+      in->mode &= ~S_ISUID;
+      if ((in->mode & (S_ISGID|S_IXGRP)) == (S_ISGID|S_IXGRP))
+	in->mode &= ~S_ISGID;
+      mark_caps_dirty(in, CEPH_CAP_AUTH_EXCL);
     }
   }
   if (in->caps_issued_mask(CEPH_CAP_FILE_EXCL)) {
@@ -7203,16 +7252,14 @@ int Client::readdir_r_cb(dir_result_t *d, add_dirent_cb_t cb, void *p)
   if (dirp->offset == 1) {
     ldout(cct, 15) << " including .." << dendl;
     uint64_t next_off = 2;
-    if (!diri->dn_set.empty()) {
-      InodeRef& in = diri->get_first_parent()->inode;
-      fill_stat(in, &st);
-      fill_dirent(&de, "..", S_IFDIR, st.st_ino, next_off);
-    } else {
-      /* must be at the root (no parent),
-       * so we add the dotdot with a special inode (3) */
-      fill_dirent(&de, "..", S_IFDIR, CEPH_INO_DOTDOT, next_off);
-    }
+    InodeRef in;
+    if (diri->dn_set.empty())
+      in = diri;
+    else
+      in = diri->get_first_parent()->inode;
 
+    fill_stat(in, &st);
+    fill_dirent(&de, "..", S_IFDIR, st.st_ino, next_off);
 
     client_lock.Unlock();
     int r = cb(p, &de, &st, -1, next_off);
@@ -9480,6 +9527,7 @@ int Client::ll_walk(const char* name, Inode **out, struct stat *attr)
   } else {
     assert(in);
     fill_stat(in, attr);
+    _ll_get(in.get());
     *out = in.get();
     return 0;
   }
@@ -9600,13 +9648,6 @@ int Client::ll_getattr(Inode *in, struct stat *attr, int uid, int gid)
   ldout(cct, 3) << "ll_getattr " << vino << dendl;
   tout(cct) << "ll_getattr" << std::endl;
   tout(cct) << vino.ino.val << std::endl;
-
-  /* special case for dotdot (..) */
-  if (vino.ino.val == CEPH_INO_DOTDOT) {
-    attr->st_mode = S_IFDIR | 0755;
-    attr->st_nlink = 2;
-    return 0;
-  }
 
   int res;
   if (vino.snapid < CEPH_NOSNAP)

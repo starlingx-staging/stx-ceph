@@ -14,8 +14,168 @@
 #
 # Please submit bugfixes or comments via http://tracker.ceph.com/
 # 
+
+###################################
+# BEGIN inline ceph_tis.spec.inc  #
+###################################
+# Titanium Cloud config overrides
+# NOTE:
+#   - bcond_without <feature> tells RPM to define with_<feature> unless
+#     --without-<feature> is explicitly present in the command line. 
+#     A regular build does not use these arguments so bcond_without is
+#     effectively enabling <feature>
+#   - the same reversed logic applies to bcond_with. Its corresponding
+#     with_<feature> is undefined unless --with-<feature> is explicitly
+#     present in the command line. 
+#
+%define tis_rpmbuild_defaults \
+    %{expand: \
+        %%bcond_without client \
+        %%bcond_without server \
+        %%bcond_without gitversion \
+        %%bcond_with subman \
+        %%bcond_with coverage \
+        %%bcond_with pgrefdebugging \
+        %%bcond_with cephfs_java \
+        %%bcond_with xio \
+        %%bcond_with valgrind \
+        %%bcond_with lttng \
+        %%bcond_with valgrind \
+        %%bcond_with selinux \
+        %%bcond_with profiler \
+        %%bcond_with man_pages \
+        %%bcond_without rados \
+        %%bcond_without rbd \
+        %%bcond_without cython \
+        %%bcond_without cephfs \
+        %%bcond_without radosgw \
+        %%bcond_with selinux \
+        %%bcond_without radosstriper \
+        %%bcond_without mon \
+        %%bcond_without osd \
+        %%bcond_without mds \
+        %%bcond_with cryptopp \
+        %%bcond_without nss \
+        %%bcond_with profiler \
+        %%bcond_with debug \
+        %%bcond_without fuse \
+        %%bcond_with jemalloc \
+        %%bcond_without tcmalloc \
+        %%bcond_with spdk \
+        %%bcond_without libatomic_ops \
+        %%bcond_with ocf \
+        %%bcond_with kinetic \
+        %%bcond_with librocksdb \
+        %%bcond_without libaio \
+        %%bcond_without libxfs \
+        %%bcond_with libzfs \
+        %%bcond_with lttng \
+        %%bcond_with babeltrace \
+        %%bcond_without eventfd \
+        %%bcond_without openldap }
+
+%define tis_assert_without() \
+    %{expand:%%{?with_%1: \
+        %%{error:"%1" is enabled} \
+        %%global tis_abort_build 1}}
+
+%define tis_assert_with() \
+    %{expand:%%{!?with_%1: \
+        %%{error:"%1" is disabled} \
+        %%global tis_abort_build 1}}
+
+%define tis_assert_package_yes() \
+    %{expand:%%tis_assert_with %1}
+
+%define tis_assert_package_no() \
+    %{expand:%%tis_assert_without %1}
+
+%define tis_assert_package() \
+    %{expand:%%tis_assert_package_%2 %1}
+
+%define tis_assert_feature_yes() \
+    %{expand:%%tis_assert_with %1}
+
+%define tis_assert_feature_no() \
+    %{expand:%%tis_assert_without %1}
+
+%define tis_assert_feature() \
+    %{expand:%%tis_assert_feature_%2 %1}
+
+# Titanium Cloud "configure" safeguards
+#
+%define tis_check_config \
+    %undefine tis_abort_build \
+    \
+    %tis_assert_feature client yes \
+    %tis_assert_feature server yes \
+    %tis_assert_feature subman no \
+    %tis_assert_feature gitversion yes \
+    %tis_assert_feature coverage no \
+    %tis_assert_feature pgrefdebugging no \
+    %tis_assert_feature cephfs_java no \
+    %tis_assert_feature xio no \
+    %tis_assert_feature valgrind no \
+    \
+    %tis_assert_package man_pages no \
+    %tis_assert_package rados yes \
+    %tis_assert_package rbd yes \
+    %tis_assert_package cython yes \
+    %tis_assert_package cephfs yes \
+    %tis_assert_package radosgw yes \
+    %tis_assert_package selinux no \
+    %tis_assert_package radosstriper yes \
+    %tis_assert_package mon yes \
+    %tis_assert_package osd yes \
+    %tis_assert_package mds yes \
+    %tis_assert_package cryptopp no \
+    %tis_assert_package nss yes \
+    %tis_assert_package profiler no \
+    %tis_assert_package debug no \
+    %tis_assert_package fuse yes \
+    %tis_assert_package jemalloc no \
+    %tis_assert_package tcmalloc yes \
+    %tis_assert_package spdk no \
+    %tis_assert_package libatomic_ops yes \
+    %tis_assert_package ocf no \
+    %tis_assert_package kinetic no \
+    %tis_assert_package librocksdb no \
+    %tis_assert_package libaio yes \
+    %tis_assert_package libxfs yes \
+    %tis_assert_package libzfs no \
+    %tis_assert_package lttng no \
+    %tis_assert_package babeltrace no \
+    %tis_assert_package eventfd yes \
+    %tis_assert_package openldap yes \
+    \
+    %{?tis_abort_build:exit 1}
+
+# Titanium Cloud configure utils
+#
+%define configure_feature() %{expand:%%{?with_%{1}:--enable-%{lua: print(rpm.expand("%{1}"):gsub("_","-"):match("^%s*(.*%S)"))}}%%{!?with_%{1}:--disable-%{lua: print(rpm.expand("%{1}"):gsub("_","-"):match("^%s*(.*%S)"))}}}
+
+%define configure_package() %{expand:%%{?with_%{1}:--with-%{lua: print(rpm.expand("%{1}"):gsub("_","-"):match("^%s*(.*%S)"))}}%%{!?with_%{1}:--without-%{lua: print(rpm.expand("%{1}"):gsub("_","-"):match("^%s*(.*%S)"))}}}
+
+# special case for tcmalloc: it's actually called tc
+#
+%define configure_package_tc %{expand:%%{?with_tcmalloc:--with-tc}%%{!?with_tcmalloc:--without-tc}}
+
+###################################
+#   END inline ceph_tis.spec.inc  #
+###################################
+%define _unpackaged_files_terminate_build 0
+%tis_rpmbuild_defaults
+%bcond_without tis
+
+# WRS: Ceph takes long time to generate debuginfo package which is not used
+# so disable it here.
+%define debug_package %{nil}
+%define optflags -O2
+
 %bcond_with ocf
+%if %{without tis}
 %bcond_without cephfs_java
+%endif
 %bcond_with tests
 %bcond_with xio
 %ifnarch s390 s390x
@@ -26,7 +186,7 @@
 %endif
 %bcond_without libs_compat
 %bcond_with lowmem_builder
-%if 0%{?fedora} || 0%{?rhel}
+%if ( 0%{?fedora} || 0%{?rhel} ) && %{without tis}
 %bcond_without selinux
 %endif
 %if 0%{?suse_version}
@@ -35,7 +195,7 @@
 
 # LTTng-UST enabled on Fedora, RHEL 6+, and SLE (not openSUSE)
 %if 0%{?fedora} || 0%{?rhel} >= 6 || 0%{?suse_version}
-%if ! 0%{?is_opensuse}
+%if ! 0%{?is_opensuse} && %{without tis}
 %bcond_without lttng
 %endif
 %endif
@@ -49,15 +209,16 @@
 %{!?tmpfiles_create: %global tmpfiles_create systemd-tmpfiles --create}
 
 # unify libexec for all targets
-%global _libexecdir %{_exec_prefix}/lib
+#%global _libexecdir %{_exec_prefix}/lib
+%global _libexecdir %{_libdir}
 
 
 #################################################################################
 # common
 #################################################################################
 Name:		ceph
-Version:	10.2.4
-Release:	0%{?dist}
+Version:	10.2.6
+Release:	0.el7%{?_tis_dist}.%{tis_patch_ver}
 Epoch:		1
 Summary:	User space components of the Ceph file system
 License:	LGPL-2.1 and CC-BY-SA-1.0 and GPL-2.0 and BSL-1.0 and GPL-2.0-with-autoconf-exception and BSD-3-Clause and MIT
@@ -65,7 +226,7 @@ License:	LGPL-2.1 and CC-BY-SA-1.0 and GPL-2.0 and BSL-1.0 and GPL-2.0-with-auto
 Group:         System/Filesystems
 %endif
 URL:		http://ceph.com/
-Source0:	http://ceph.com/download/%{name}-%{version}.tar.bz2
+Source0:	http://ceph.com/download/%{name}-%{version}.tar.gz
 %if 0%{?suse_version}
 %if 0%{?is_opensuse}
 ExclusiveArch:  x86_64 aarch64 ppc64 ppc64le
@@ -216,11 +377,7 @@ Requires:      cryptsetup
 Requires:      findutils
 Requires:      which
 %if 0%{?suse_version}
-Requires:      lsb-release
 Recommends:    ntp-daemon
-%endif
-%if 0%{?fedora} || 0%{?rhel}
-Requires:      redhat-lsb-core
 %endif
 %if 0%{with xio}
 Requires:      libxio
@@ -625,6 +782,10 @@ python-cephfs instead.
 #################################################################################
 %prep
 %setup -q
+# Titanium Cloud:Copy the .git_version file needed by the build
+#     This commit SHA is from the upstream src rpm which is the base of this repo branch
+#     TODO: Add a commit hook to update to our latest commit SHA 
+cp wrs/wrs_git_version %{_builddir}/%{name}-%{version}/src/.git_version
 
 %build
 %if 0%{with cephfs_java}
@@ -641,36 +802,70 @@ RPM_OPT_FLAGS="$RPM_OPT_FLAGS --param ggc-min-expand=20 --param ggc-min-heapsize
 %endif
 export RPM_OPT_FLAGS=`echo $RPM_OPT_FLAGS | sed -e 's/i386/i486/'`
 
+%if 0%{?rhel} && ! 0%{?centos}
+%bcond_without subman
+%endif
+%bcond_without nss
+%bcond_with cryptopp 
+%if %{without tis}
+%bcond_without debug
+%bcond_without man_pages 
+%endif
+%bcond_without radosgw
+%if %{without lttng} 
+%bcond_with lttng
+%bcond_with babeltrace
+%endif
+
+%tis_check_config
 %{configure}	CPPFLAGS="$java_inc" \
 		--prefix=/usr \
                 --libexecdir=%{_libexecdir} \
 		--localstatedir=%{_localstatedir} \
 		--sysconfdir=%{_sysconfdir} \
-%if 0%{?rhel} && ! 0%{?centos}
-                --enable-subman \
-%endif
+                %configure_feature client \
+                %configure_feature server \
+                %configure_feature subman \
+                %configure_feature gitversion \
+                %configure_feature coverage \
+                %configure_feature pgrefdebugging \
+                %configure_feature cephfs_java \
+                %configure_feature xio \
+                %configure_feature valgrind \
 		--with-systemdsystemunitdir=%_unitdir \
 		--docdir=%{_docdir}/ceph \
-		--with-man-pages \
+		%configure_package man_pages \
 		--mandir="%_mandir" \
-		--with-nss \
-		--without-cryptopp \
-		--with-debug \
-%if 0%{with cephfs_java}
-		--enable-cephfs-java \
-%endif
-%if 0%{with xio}
-		--enable-xio \
-%endif
-%if 0%{with selinux}
-		--with-selinux \
-%endif
+		%configure_package rados \
+		%configure_package rbd \
+		%configure_package cython \
+		%configure_package cephfs \
+		%configure_package radosgw \
+		%configure_package selinux \
+		%configure_package radosstriper \
+		%configure_package mon \
+		%configure_package osd \
+		%configure_package mds \
+		%configure_package cryptopp \
+		%configure_package nss \
+		%configure_package profiler \
+		%configure_package debug \
+		%configure_package fuse \
+		%configure_package jemalloc \
+		%configure_package tc \
+		%configure_package spdk \
+		%configure_package libatomic_ops \
+		%configure_package ocf \
+		%configure_package kinetic \
+		%configure_package librocksdb \
 		--with-librocksdb-static=check \
-		--with-radosgw \
-%if %{without lttng}
-		--without-lttng \
-		--without-babeltrace \
-%endif
+		%configure_package libaio \
+		%configure_package libxfs \
+		%configure_package libzfs \
+		%configure_package lttng \
+		%configure_package babeltrace \
+		%configure_package eventfd \
+		%configure_package openldap \
 		$CEPH_EXTRA_CONFIGURE_ARGS \
 		%{?_with_ocf} \
 %if %{without tcmalloc}
@@ -700,17 +895,22 @@ make %{?_smp_mflags} check
 make DESTDIR=%{buildroot} install
 find %{buildroot} -type f -name "*.la" -exec rm -f {} ';'
 find %{buildroot} -type f -name "*.a" -exec rm -f {} ';'
-install -D src/etc-rbdmap %{buildroot}%{_sysconfdir}/ceph/rbdmap
+install -m 0644 -D src/etc-rbdmap %{buildroot}%{_sysconfdir}/ceph/rbdmap
 %if 0%{?fedora} || 0%{?rhel}
 install -m 0644 -D etc/sysconfig/ceph %{buildroot}%{_sysconfdir}/sysconfig/ceph
 %endif
 %if 0%{?suse_version}
 install -m 0644 -D etc/sysconfig/ceph %{buildroot}%{_localstatedir}/adm/fillup-templates/sysconfig.%{name}
 %endif
+%if %{without tis}
 install -m 0644 -D systemd/ceph.tmpfiles.d %{buildroot}%{_tmpfilesdir}/ceph-common.conf
-install -m 0755 -D systemd/ceph %{buildroot}%{_sbindir}/rcceph
-install -m 0644 -D systemd/50-ceph.preset %{buildroot}%{_libexecdir}/systemd/system-preset/50-ceph.preset
+%endif
 mkdir -p %{buildroot}%{_sbindir}
+install -m 0755 -D systemd/ceph %{buildroot}%{_sbindir}/rcceph
+%if %{without tis}
+install -m 0644 -D systemd/50-ceph.preset %{buildroot}%{_libexecdir}/systemd/system-preset/50-ceph.preset
+%endif
+
 install -m 0644 -D src/logrotate.conf %{buildroot}%{_sysconfdir}/logrotate.d/ceph
 chmod 0644 %{buildroot}%{_docdir}/ceph/sample.ceph.conf
 chmod 0644 %{buildroot}%{_docdir}/ceph/sample.fetch_config
@@ -725,8 +925,10 @@ ln -sf %{_sbindir}/mount.ceph %{buildroot}/sbin/mount.ceph
 
 # udev rules
 install -m 0644 -D udev/50-rbd.rules %{buildroot}%{_udevrulesdir}/50-rbd.rules
-install -m 0644 -D udev/60-ceph-by-parttypeuuid.rules %{buildroot}%{_udevrulesdir}/60-ceph-by-parttypeuuid.rules
+install -m 0640 -D udev/60-ceph-by-parttypeuuid.rules %{buildroot}%{_udevrulesdir}/60-ceph-by-parttypeuuid.rules
+%if %{without tis}
 install -m 0644 -D udev/95-ceph-osd.rules %{buildroot}%{_udevrulesdir}/95-ceph-osd.rules
+%endif
 
 #set up placeholder directories
 mkdir -p %{buildroot}%{_sysconfdir}/ceph
@@ -740,6 +942,31 @@ mkdir -p %{buildroot}%{_localstatedir}/lib/ceph/radosgw
 mkdir -p %{buildroot}%{_localstatedir}/lib/ceph/bootstrap-osd
 mkdir -p %{buildroot}%{_localstatedir}/lib/ceph/bootstrap-mds
 mkdir -p %{buildroot}%{_localstatedir}/lib/ceph/bootstrap-rgw
+
+%if %{with tis}
+install -d -m 750 %{buildroot}%{_sysconfdir}/services.d/controller
+install -d -m 750 %{buildroot}%{_sysconfdir}/services.d/storage
+mkdir -p %{buildroot}%{_initrddir}
+mkdir -p %{buildroot}%{_sysconfdir}/ceph
+mkdir -p %{buildroot}%{_unitdir}
+
+install -m 750 wrs/ceph.sh %{buildroot}%{_sysconfdir}/services.d/controller/
+install -m 750 wrs/ceph.sh %{buildroot}%{_sysconfdir}/services.d/storage/
+install -m 750 wrs/ceph-rest-api %{buildroot}%{_initrddir}/
+install -m 750 wrs/ceph.conf.pmon %{buildroot}%{_sysconfdir}/ceph/
+install -m 750 wrs/ceph_pmon_wrapper.sh %{buildroot}%{_sysconfdir}/ceph/
+install -m 640 wrs/ceph.conf %{buildroot}%{_sysconfdir}/ceph/
+install -m 700 wrs/ceph-manage-journal.py %{buildroot}/usr/sbin/ceph-manage-journal
+install -m 700 wrs/osd-wait-status.py %{buildroot}/usr/sbin/osd-wait-status
+install -m 644 wrs/ceph.service $RPM_BUILD_ROOT/%{_unitdir}/ceph.service
+install -m 644 wrs/ceph-rest-api.service $RPM_BUILD_ROOT/%{_unitdir}/ceph-rest-api.service
+install -m 644 wrs/ceph-radosgw.service $RPM_BUILD_ROOT/%{_unitdir}/ceph-radosgw.service
+
+install -m 750 src/init-ceph %{buildroot}/%{_initrddir}/ceph
+install -m 750 src/init-radosgw %{buildroot}/%{_initrddir}/ceph-radosgw 
+install -m 750 src/init-rbdmap %{buildroot}/%{_initrddir}/rbdmap
+install -d -m 750 %{buildroot}/var/log/radosgw
+%endif
 
 %clean
 rm -rf %{buildroot}
@@ -760,10 +987,25 @@ rm -rf %{buildroot}
 %{_bindir}/osdmaptool
 %{_bindir}/ceph-run
 %{_bindir}/ceph-detect-init
+%if %{with debug}
 %{_bindir}/ceph-client-debug
+%endif
+%if %{with cephfs}
 %{_bindir}/cephfs
+%endif
+%if %{with tis}
+%{_initrddir}/ceph
+%{_initrddir}/ceph-rest-api
+%{_sysconfdir}/ceph/ceph.conf.pmon
+%{_sysconfdir}/ceph/ceph_pmon_wrapper.sh
+%config(noreplace) %{_sysconfdir}/ceph/ceph.conf
+%{_sysconfdir}/services.d/*
+%{_sbindir}/ceph-manage-journal
+%endif
+%if %{without tis}
 %{_unitdir}/ceph-create-keys@.service
 %{_libexecdir}/systemd/system-preset/50-ceph.preset
+%endif
 %{_sbindir}/ceph-create-keys
 %{_sbindir}/rcceph
 %dir %{_libexecdir}/ceph
@@ -790,8 +1032,14 @@ rm -rf %{buildroot}
 %config %{_sysconfdir}/sysconfig/SuSEfirewall2.d/services/ceph-osd-mds
 %endif
 %{_unitdir}/ceph.target
+%if %{with tis}
+%{_unitdir}/ceph.service
+%{_unitdir}/ceph-rest-api.service
+%{_unitdir}/ceph-radosgw.service
+%endif
 %{python_sitelib}/ceph_detect_init*
 %{python_sitelib}/ceph_disk*
+%if %{with man_pages}
 %{_mandir}/man8/ceph-deploy.8*
 %{_mandir}/man8/ceph-detect-init.8*
 %{_mandir}/man8/ceph-create-keys.8*
@@ -800,12 +1048,14 @@ rm -rf %{buildroot}
 %{_mandir}/man8/osdmaptool.8*
 %{_mandir}/man8/monmaptool.8*
 %{_mandir}/man8/cephfs.8*
+%endif
 #set up placeholder directories
 %attr(750,ceph,ceph) %dir %{_localstatedir}/lib/ceph/tmp
 %attr(750,ceph,ceph) %dir %{_localstatedir}/lib/ceph/bootstrap-osd
 %attr(750,ceph,ceph) %dir %{_localstatedir}/lib/ceph/bootstrap-mds
 %attr(750,ceph,ceph) %dir %{_localstatedir}/lib/ceph/bootstrap-rgw
 
+%if %{without tis}
 %post base
 /sbin/ldconfig
 %if 0%{?suse_version}
@@ -836,6 +1086,7 @@ DISABLE_RESTART_ON_UPDATE="yes"
 %if 0%{?fedora} || 0%{?rhel}
 %systemd_postun ceph.target
 %endif
+%endif
 
 #################################################################################
 %files common
@@ -855,7 +1106,9 @@ DISABLE_RESTART_ON_UPDATE="yes"
 %{_bindir}/rbd-replay
 %{_bindir}/rbd-replay-many
 %{_bindir}/rbdmap
+%if %{with cephfs}
 %{_sbindir}/mount.ceph
+%endif
 %if 0%{?suse_version}
 /sbin/mount.ceph
 %endif
@@ -864,7 +1117,10 @@ DISABLE_RESTART_ON_UPDATE="yes"
 %endif
 %{_bindir}/ceph-post-file
 %{_bindir}/ceph-brag
+%if %{without tis}
 %{_tmpfilesdir}/ceph-common.conf
+%endif
+%if %{with man_pages}
 %{_mandir}/man8/ceph-authtool.8*
 %{_mandir}/man8/ceph-conf.8*
 %{_mandir}/man8/ceph-dencoder.8*
@@ -879,6 +1135,7 @@ DISABLE_RESTART_ON_UPDATE="yes"
 %{_mandir}/man8/rbd-replay.8*
 %{_mandir}/man8/rbd-replay-many.8*
 %{_mandir}/man8/rbd-replay-prep.8*
+%endif
 %dir %{_datadir}/ceph/
 %{_datadir}/ceph/known_hosts_drop.ceph.com
 %{_datadir}/ceph/id_rsa_drop.ceph.com
@@ -886,8 +1143,12 @@ DISABLE_RESTART_ON_UPDATE="yes"
 %dir %{_sysconfdir}/ceph/
 %config %{_sysconfdir}/bash_completion.d/rados
 %config %{_sysconfdir}/bash_completion.d/rbd
-%config(noreplace) %{_sysconfdir}/ceph/rbdmap
+%attr(640,root,root) %config(noreplace) %{_sysconfdir}/ceph/rbdmap
+%if %{with tis}
+%{_initrddir}/rbdmap
+%else
 %{_unitdir}/rbdmap.service
+%endif
 %{python_sitelib}/ceph_argparse.py*
 %{python_sitelib}/ceph_daemon.py*
 %dir %{_udevrulesdir}
@@ -896,6 +1157,7 @@ DISABLE_RESTART_ON_UPDATE="yes"
 %attr(750,ceph,ceph) %dir %{_localstatedir}/lib/ceph/
 
 %pre common
+%if %{without tis}
 CEPH_GROUP_ID=167
 CEPH_USER_ID=167
 %if 0%{?rhel} || 0%{?fedora}
@@ -920,9 +1182,12 @@ usermod -c "Ceph storage service" \
         ceph
 %endif
 exit 0
+%endif
 
 %post common
+%if %{without tis}
 %tmpfiles_create %{_tmpfilesdir}/ceph-common.conf
+%endif
 
 %postun common
 # Package removal cleanup
@@ -934,7 +1199,9 @@ fi
 #################################################################################
 %files mds
 %{_bindir}/ceph-mds
+%if %{with man_pages}
 %{_mandir}/man8/ceph-mds.8*
+%endif
 %{_unitdir}/ceph-mds@.service
 %{_unitdir}/ceph-mds.target
 %attr(750,ceph,ceph) %dir %{_localstatedir}/lib/ceph/mds
@@ -983,13 +1250,21 @@ fi
 %files mon
 %{_bindir}/ceph-mon
 %{_bindir}/ceph-rest-api
+%if %{with man_pages}
 %{_mandir}/man8/ceph-mon.8*
 %{_mandir}/man8/ceph-rest-api.8*
+%endif
 %{python_sitelib}/ceph_rest_api.py*
+%if %{without tis}
 %{_unitdir}/ceph-mon@.service
 %{_unitdir}/ceph-mon.target
+%else
+%exclude %{_unitdir}/ceph-mon@.service
+%exclude %{_unitdir}/ceph-mon.target
+%endif
 %attr(750,ceph,ceph) %dir %{_localstatedir}/lib/ceph/mon
 
+%if %{without tis}
 %post mon
 %if 0%{?suse_version}
 if [ $1 -ge 1 ] ; then
@@ -998,8 +1273,8 @@ fi
 %endif
 %if 0%{?fedora} || 0%{?rhel}
 %systemd_post ceph-create-keys@\*.service ceph-mon@\*.service ceph-mon.target
-%endif
 /usr/bin/systemctl start ceph-mon.target >/dev/null 2>&1 || :
+%endif
 
 %preun mon
 %if 0%{?suse_version}
@@ -1029,28 +1304,42 @@ if [ $FIRST_ARG -ge 1 ] ; then
     /usr/bin/systemctl try-restart ceph-create-keys@\*.service ceph-mon@\*.service > /dev/null 2>&1 || :
   fi
 fi
+%endif
 
 #################################################################################
+%if %{with fuse}
 %files fuse
 %defattr(-,root,root,-)
 %{_bindir}/ceph-fuse
+%if %{with man_pages}
 %{_mandir}/man8/ceph-fuse.8*
+%endif
 %{_sbindir}/mount.fuse.ceph
+%endif
 
 #################################################################################
+%if %{with fuse}
 %files -n rbd-fuse
 %defattr(-,root,root,-)
 %{_bindir}/rbd-fuse
+%if %{with man_pages}
 %{_mandir}/man8/rbd-fuse.8*
+%endif
+%endif
 
 #################################################################################
 %files -n rbd-mirror
 %defattr(-,root,root,-)
 %{_bindir}/rbd-mirror
+%if %{with man_pages}
 %{_mandir}/man8/rbd-mirror.8*
+%endif
+%if %{without tis}
 %{_unitdir}/ceph-rbd-mirror@.service
 %{_unitdir}/ceph-rbd-mirror.target
+%endif
 
+%if %{without tis}
 %post -n rbd-mirror
 %if 0%{?suse_version}
 if [ $1 -ge 1 ] ; then
@@ -1090,12 +1379,15 @@ if [ $FIRST_ARG -ge 1 ] ; then
     /usr/bin/systemctl try-restart ceph-rbd-mirror@\*.service > /dev/null 2>&1 || :
   fi
 fi
+%endif
 
 #################################################################################
 %files -n rbd-nbd
 %defattr(-,root,root,-)
 %{_bindir}/rbd-nbd
+%if %{with man_pages}
 %{_mandir}/man8/rbd-nbd.8*
+%endif
 
 #################################################################################
 %files radosgw
@@ -1104,13 +1396,21 @@ fi
 %{_bindir}/radosgw-admin
 %{_bindir}/radosgw-token
 %{_bindir}/radosgw-object-expirer
+%if %{with man_pages}
 %{_mandir}/man8/radosgw.8*
 %{_mandir}/man8/radosgw-admin.8*
+%endif
 %config %{_sysconfdir}/bash_completion.d/radosgw-admin
 %dir %{_localstatedir}/lib/ceph/radosgw
+%if %{with tis}
+%{_initrddir}/ceph-radosgw
+%dir /var/log/radosgw
+%else
 %{_unitdir}/ceph-radosgw@.service
 %{_unitdir}/ceph-radosgw.target
+%endif
 
+%if %{without tis}
 %post radosgw
 %if 0%{?suse_version}
 if [ $1 -ge 1 ] ; then
@@ -1150,6 +1450,7 @@ if [ $FIRST_ARG -ge 1 ] ; then
     /usr/bin/systemctl try-restart ceph-radosgw@\*.service > /dev/null 2>&1 || :
   fi
 fi
+%endif
 
 #################################################################################
 %files osd
@@ -1159,21 +1460,31 @@ fi
 %{_bindir}/ceph-osd
 %{_sbindir}/ceph-disk
 %{_sbindir}/ceph-disk-udev
+%if %{with tis}
+%{_sbindir}/ceph-manage-journal
+%endif
 %{_libexecdir}/ceph/ceph-osd-prestart.sh
 %dir %{_udevrulesdir}
 %{_udevrulesdir}/60-ceph-by-parttypeuuid.rules
+%if %{without tis}
 %{_udevrulesdir}/95-ceph-osd.rules
+%endif
+%if %{with man_pages}
 %{_mandir}/man8/ceph-clsinfo.8*
 %{_mandir}/man8/ceph-disk.8*
 %{_mandir}/man8/ceph-osd.8*
+%endif
 %if 0%{?rhel} && ! 0%{?centos}
 %{_sysconfdir}/cron.hourly/subman
 %endif
+%if %{without tis}
 %{_unitdir}/ceph-osd@.service
 %{_unitdir}/ceph-osd.target
 %{_unitdir}/ceph-disk@.service
+%endif
 %attr(750,ceph,ceph) %dir %{_localstatedir}/lib/ceph/osd
 
+%if %{without tis}
 %post osd
 %if 0%{?suse_version}
 if [ $1 -ge 1 ] ; then
@@ -1213,6 +1524,7 @@ if [ $FIRST_ARG -ge 1 ] ; then
     /usr/bin/systemctl try-restart ceph-disk@\*.service ceph-osd@\*.service > /dev/null 2>&1 || :
   fi
 fi
+%endif
 
 #################################################################################
 %if %{with ocf}
@@ -1259,7 +1571,9 @@ fi
 %{_libdir}/librados_tp.so
 %endif
 %{_bindir}/librados-config
+%if %{with man_pages}
 %{_mandir}/man8/librados-config.8*
+%endif
 
 #################################################################################
 %files -n python-rados
@@ -1340,6 +1654,7 @@ ln -sf %{_libdir}/librbd.so.1 /usr/lib64/qemu/librbd.so.1
 %{python_sitearch}/rbd-*.egg-info
 
 #################################################################################
+%if %{with cephfs}
 %files -n libcephfs1
 %defattr(-,root,root,-)
 %{_libdir}/libcephfs.so.*
@@ -1349,22 +1664,28 @@ ln -sf %{_libdir}/librbd.so.1 /usr/lib64/qemu/librbd.so.1
 
 %postun -n libcephfs1
 /sbin/ldconfig
+%endif
 
 #################################################################################
+%if %{with cephfs}
 %files -n libcephfs1-devel
 %defattr(-,root,root,-)
 %dir %{_includedir}/cephfs
 %{_includedir}/cephfs/libcephfs.h
 %{_libdir}/libcephfs.so
+%endif
 
 #################################################################################
+%if %{with cephfs}
 %files -n python-cephfs
 %defattr(-,root,root,-)
 %{python_sitearch}/cephfs.so
 %{python_sitearch}/cephfs-*.egg-info
 %{python_sitelib}/ceph_volume_client.py*
+%endif
 
 #################################################################################
+%if %{with debug}
 %files -n ceph-test
 %defattr(-,root,root,-)
 %{_bindir}/ceph_bench_log
@@ -1397,9 +1718,20 @@ ln -sf %{_libdir}/librbd.so.1 /usr/lib64/qemu/librbd.so.1
 %{_bindir}/ceph-osdomap-tool
 %{_bindir}/ceph-kvstore-tool
 %{_bindir}/ceph-debugpack
+%if %{with man_pages}
 %{_mandir}/man8/ceph-debugpack.8*
+%endif
 %dir %{_libdir}/ceph
 %{_libdir}/ceph/ceph-monstore-update-crush.sh
+%else
+# instead of fixing installed but unpackaged files issue we're
+# packaging them even if debug build is not enabled
+%files -n ceph-test
+%defattr(-,root,root,-)
+%{_bindir}/ceph-coverage
+%{_bindir}/ceph-debugpack
+%{_libdir}/ceph/ceph-monstore-update-crush.sh
+%endif
 
 #################################################################################
 %if 0%{with cephfs_java}
@@ -1431,8 +1763,11 @@ ln -sf %{_libdir}/librbd.so.1 /usr/lib64/qemu/librbd.so.1
 %defattr(-,root,root,-)
 %attr(0600,root,root) %{_datadir}/selinux/packages/ceph.pp
 %{_datadir}/selinux/devel/include/contrib/ceph.if
+%if %{with man_pages}
 %{_mandir}/man8/ceph_selinux.8*
+%endif
 
+%if %{without tis}
 %post selinux
 # backup file_contexts before update
 . /etc/selinux/config
@@ -1510,7 +1845,7 @@ if [ $1 -eq 0 ]; then
     fi
 fi
 exit 0
-
+%endif
 %endif # with selinux
 
 #################################################################################

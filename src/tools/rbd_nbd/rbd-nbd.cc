@@ -62,7 +62,8 @@ static void usage()
             << "Options:\n"
             << "  --device <device path>                    Specify nbd device path\n"
             << "  --read-only                               Map readonly\n"
-            << "  --nbds_max <limit>                        Override for module param\n"
+            << "  --nbds_max <limit>                        Override for module param nbds_max\n"
+            << "  --max_part <limit>                        Override for module param max_part\n"
             << std::endl;
   generic_server_usage();
 }
@@ -70,6 +71,7 @@ static void usage()
 static std::string devpath, poolname("rbd"), imgname, snapname;
 static bool readonly = false;
 static int nbds_max = 0;
+static int max_part = 255;
 
 #ifdef CEPH_BIG_ENDIAN
 #define ntohll(a) (a)
@@ -219,7 +221,7 @@ private:
 
       int r = safe_read_exact(fd, &ctx->request, sizeof(struct nbd_request));
       if (r < 0) {
-	derr << "failed to read nbd request header: " << cpp_strerror(errno)
+	derr << "failed to read nbd request header: " << cpp_strerror(r)
 	     << dendl;
 	return;
       }
@@ -251,7 +253,7 @@ private:
 	  r = safe_read_exact(fd, ptr.c_str(), ctx->request.len);
           if (r < 0) {
 	    derr << *ctx << ": failed to read nbd request data: "
-		 << cpp_strerror(errno) << dendl;
+		 << cpp_strerror(r) << dendl;
             return;
 	  }
           ctx->data.push_back(ptr);
@@ -443,14 +445,15 @@ static int open_device(const char* path, bool try_load_moudle = false)
 {
   int nbd = open(path, O_RDWR);
   if (nbd < 0 && try_load_moudle && access("/sys/module/nbd", F_OK) != 0) {
+    ostringstream param;
     int r;
     if (nbds_max) {
-      ostringstream param;
       param << "nbds_max=" << nbds_max;
-      r = module_load("nbd", param.str().c_str());
-    } else {
-      r = module_load("nbd", NULL);
     }
+    if (max_part) {
+        param << " max_part=" << max_part;
+    }
+    r = module_load("nbd", param.str().c_str());
     if (r < 0) {
       cerr << "rbd-nbd: failed to load nbd kernel module: " << cpp_strerror(-r) << std::endl;
       return r;
@@ -582,6 +585,14 @@ static int do_map()
   }
 
   size = info.size;
+
+  if (size > (1UL << 32) * 512) {
+    r = -EFBIG;
+    cerr << "rbd-nbd: image is too large (" << prettybyte_t(size) << ", max is "
+         << prettybyte_t((1UL << 32) * 512) << ")" << std::endl;
+    goto close_nbd;
+  }
+
   r = ioctl(nbd, NBD_SET_SIZE, size);
   if (r < 0) {
     r = -errno;
@@ -753,6 +764,15 @@ static int rbd_nbd(int argc, const char *argv[])
       }
       if (nbds_max < 0) {
         cerr << "rbd-nbd: Invalid argument for nbds_max!" << std::endl;
+        return EXIT_FAILURE;
+      }
+    } else if (ceph_argparse_witharg(args, i, &max_part, err, "--max_part", (char *)NULL)) {
+      if (!err.str().empty()) {
+        cerr << err.str() << std::endl;
+        return EXIT_FAILURE;
+      }
+      if ((max_part < 0) || (max_part > 255)) {
+        cerr << "rbd-nbd: Invalid argument for max_part(0~255)!" << std::endl;
         return EXIT_FAILURE;
       }
     } else if (ceph_argparse_flag(args, i, "--read-only", (char *)NULL)) {

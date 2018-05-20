@@ -80,7 +80,7 @@ void PGMonitor::on_active()
   update_logger();
 
   if (mon->is_leader())
-    mon->clog->info() << "pgmap " << pg_map << "\n";
+    mon->clog->debug() << "pgmap " << pg_map << "\n";
 }
 
 void PGMonitor::update_logger()
@@ -708,7 +708,8 @@ bool PGMonitor::preprocess_pg_stats(MonOpRequestRef op)
   // only if they've had the map for a while.
   if (stats->had_map_for > 30.0 &&
       mon->osdmon()->is_readable() &&
-      stats->epoch < mon->osdmon()->osdmap.get_epoch())
+      stats->epoch < mon->osdmon()->osdmap.get_epoch() &&
+      !session->proxy_con)
     mon->osdmon()->send_latest_now_nodelete(op, stats->epoch+1);
 
   // Always forward the PGStats to the leader, even if they are the same as

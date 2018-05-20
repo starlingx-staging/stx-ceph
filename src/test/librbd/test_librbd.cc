@@ -276,6 +276,90 @@ TEST_F(TestLibRBD, CreateAndStatPP)
   ioctx.close();
 }
 
+TEST_F(TestLibRBD, GetId)
+{
+  rados_ioctx_t ioctx;
+  ASSERT_EQ(0, rados_ioctx_create(_cluster, m_pool_name.c_str(), &ioctx));
+
+  rbd_image_t image;
+  int order = 0;
+  std::string name = get_temp_image_name();
+
+  ASSERT_EQ(0, create_image(ioctx, name.c_str(), 0, &order));
+  ASSERT_EQ(0, rbd_open(ioctx, name.c_str(), &image, NULL));
+
+  char id[4096];
+  if (!is_feature_enabled(0)) {
+    // V1 image
+    ASSERT_EQ(-EINVAL, rbd_get_id(image, id, sizeof(id)));
+  } else {
+    ASSERT_EQ(-ERANGE, rbd_get_id(image, id, 0));
+    ASSERT_EQ(0, rbd_get_id(image, id, sizeof(id)));
+    ASSERT_LT(0U, strlen(id));
+  }
+
+  ASSERT_EQ(0, rbd_close(image));
+  rados_ioctx_destroy(ioctx);
+}
+
+TEST_F(TestLibRBD, GetIdPP)
+{
+  librados::IoCtx ioctx;
+  ASSERT_EQ(0, _rados.ioctx_create(m_pool_name.c_str(), ioctx));
+
+  librbd::RBD rbd;
+  librbd::Image image;
+  int order = 0;
+  std::string name = get_temp_image_name();
+
+  std::string id;
+  ASSERT_EQ(0, create_image_pp(rbd, ioctx, name.c_str(), 0, &order));
+  ASSERT_EQ(0, rbd.open(ioctx, image, name.c_str(), NULL));
+  if (!is_feature_enabled(0)) {
+    // V1 image
+    ASSERT_EQ(-EINVAL, image.get_id(&id));
+  } else {
+    ASSERT_EQ(0, image.get_id(&id));
+    ASSERT_LT(0U, id.size());
+  }
+}
+
+TEST_F(TestLibRBD, GetBlockNamePrefix)
+{
+  rados_ioctx_t ioctx;
+  ASSERT_EQ(0, rados_ioctx_create(_cluster, m_pool_name.c_str(), &ioctx));
+
+  rbd_image_t image;
+  int order = 0;
+  std::string name = get_temp_image_name();
+
+  ASSERT_EQ(0, create_image(ioctx, name.c_str(), 0, &order));
+  ASSERT_EQ(0, rbd_open(ioctx, name.c_str(), &image, NULL));
+
+  char prefix[4096];
+  ASSERT_EQ(-ERANGE, rbd_get_block_name_prefix(image, prefix, 0));
+  ASSERT_EQ(0, rbd_get_block_name_prefix(image, prefix, sizeof(prefix)));
+  ASSERT_LT(0U, strlen(prefix));
+
+  ASSERT_EQ(0, rbd_close(image));
+  rados_ioctx_destroy(ioctx);
+}
+
+TEST_F(TestLibRBD, GetBlockNamePrefixPP)
+{
+  librados::IoCtx ioctx;
+  ASSERT_EQ(0, _rados.ioctx_create(m_pool_name.c_str(), ioctx));
+
+  librbd::RBD rbd;
+  librbd::Image image;
+  int order = 0;
+  std::string name = get_temp_image_name();
+
+  ASSERT_EQ(0, create_image_pp(rbd, ioctx, name.c_str(), 0, &order));
+  ASSERT_EQ(0, rbd.open(ioctx, image, name.c_str(), NULL));
+  ASSERT_LT(0U, image.get_block_name_prefix().size());
+}
+
 TEST_F(TestLibRBD, OpenAio)
 {
   rados_ioctx_t ioctx;
@@ -3585,6 +3669,11 @@ TEST_F(TestLibRBD, Metadata)
   ASSERT_EQ(1U, pairs.size());
   ASSERT_EQ(0, strncmp("value2", pairs["key2"].c_str(), 6));
 
+  // test config setting
+  ASSERT_EQ(0, image1.metadata_set("conf_rbd_cache", "false"));
+  ASSERT_EQ(-EINVAL, image1.metadata_set("conf_rbd_cache", "INVALID_VALUE"));
+  ASSERT_EQ(0, image1.metadata_remove("conf_rbd_cache"));
+
   // test metadata with snapshot adding
   ASSERT_EQ(0, image1.snap_create("snap1"));
   ASSERT_EQ(0, image1.snap_protect("snap1"));
@@ -4360,6 +4449,9 @@ TEST_F(TestLibRBD, FlushCacheWithCopyupOnExternalSnapshot) {
 
 TEST_F(TestLibRBD, DiscardAfterWrite)
 {
+  CephContext* cct = reinterpret_cast<CephContext*>(_rados.cct());
+  REQUIRE(!cct->_conf->rbd_skip_partial_discard);
+
   librados::IoCtx ioctx;
   ASSERT_EQ(0, _rados.ioctx_create(m_pool_name.c_str(), ioctx));
 
@@ -4398,4 +4490,164 @@ TEST_F(TestLibRBD, DiscardAfterWrite)
   ASSERT_EQ(bl.length(), read_comp->get_return_value());
   ASSERT_TRUE(read_bl.is_zero());
   read_comp->release();
+}
+
+TEST_F(TestLibRBD, ExclusiveLock)
+{
+  REQUIRE_FEATURE(RBD_FEATURE_EXCLUSIVE_LOCK);
+
+  static char buf[10];
+
+  rados_ioctx_t ioctx;
+  rados_ioctx_create(_cluster, m_pool_name.c_str(), &ioctx);
+
+  std::string name = get_temp_image_name();
+  uint64_t size = 2 << 20;
+  int order = 0;
+  ASSERT_EQ(0, create_image(ioctx, name.c_str(), size, &order));
+
+  rbd_image_t image1;
+  ASSERT_EQ(0, rbd_open(ioctx, name.c_str(), &image1, NULL));
+
+  int lock_owner;
+  ASSERT_EQ(0, rbd_lock_acquire(image1, RBD_LOCK_MODE_EXCLUSIVE));
+  ASSERT_EQ(0, rbd_is_exclusive_lock_owner(image1, &lock_owner));
+  ASSERT_TRUE(lock_owner);
+
+  rbd_lock_mode_t lock_mode;
+  char *lock_owners[1];
+  size_t max_lock_owners = 0;
+  ASSERT_EQ(-ERANGE, rbd_lock_get_owners(image1, &lock_mode, lock_owners,
+                                         &max_lock_owners));
+  ASSERT_EQ(1U, max_lock_owners);
+
+  max_lock_owners = 2;
+  ASSERT_EQ(0, rbd_lock_get_owners(image1, &lock_mode, lock_owners,
+                                   &max_lock_owners));
+  ASSERT_EQ(RBD_LOCK_MODE_EXCLUSIVE, lock_mode);
+  ASSERT_STRNE("", lock_owners[0]);
+  ASSERT_EQ(1U, max_lock_owners);
+
+  rbd_image_t image2;
+  ASSERT_EQ(0, rbd_open(ioctx, name.c_str(), &image2, NULL));
+
+  ASSERT_EQ(0, rbd_is_exclusive_lock_owner(image2, &lock_owner));
+  ASSERT_FALSE(lock_owner);
+
+  ASSERT_EQ(-EOPNOTSUPP, rbd_lock_break(image1, RBD_LOCK_MODE_SHARED, ""));
+  ASSERT_EQ(-EBUSY, rbd_lock_break(image1, RBD_LOCK_MODE_EXCLUSIVE,
+                                   "not the owner"));
+
+  ASSERT_EQ(0, rbd_lock_release(image1));
+  ASSERT_EQ(0, rbd_is_exclusive_lock_owner(image1, &lock_owner));
+  ASSERT_FALSE(lock_owner);
+
+  ASSERT_EQ(-ENOENT, rbd_lock_break(image1, RBD_LOCK_MODE_EXCLUSIVE,
+                                    lock_owners[0]));
+  rbd_lock_get_owners_cleanup(lock_owners, max_lock_owners);
+
+  ASSERT_EQ(-EROFS, rbd_write(image1, 0, sizeof(buf), buf));
+  ASSERT_EQ((ssize_t)sizeof(buf), rbd_write(image2, 0, sizeof(buf), buf));
+
+  ASSERT_EQ(0, rbd_lock_acquire(image2, RBD_LOCK_MODE_EXCLUSIVE));
+  ASSERT_EQ(0, rbd_is_exclusive_lock_owner(image2, &lock_owner));
+  ASSERT_TRUE(lock_owner);
+
+  ASSERT_EQ(0, rbd_lock_release(image2));
+  ASSERT_EQ(0, rbd_is_exclusive_lock_owner(image2, &lock_owner));
+  ASSERT_FALSE(lock_owner);
+
+  ASSERT_EQ(0, rbd_lock_acquire(image1, RBD_LOCK_MODE_EXCLUSIVE));
+  ASSERT_EQ(0, rbd_is_exclusive_lock_owner(image1, &lock_owner));
+  ASSERT_TRUE(lock_owner);
+
+  ASSERT_EQ((ssize_t)sizeof(buf), rbd_write(image1, 0, sizeof(buf), buf));
+  ASSERT_EQ(-EROFS, rbd_write(image2, 0, sizeof(buf), buf));
+
+  ASSERT_EQ(0, rbd_lock_release(image1));
+  ASSERT_EQ(0, rbd_is_exclusive_lock_owner(image1, &lock_owner));
+  ASSERT_FALSE(lock_owner);
+
+  int owner_id = -1;
+  Mutex lock("ping-pong");
+  class PingPong : public Thread {
+  public:
+    explicit PingPong(int id, rbd_image_t &image, int &owner_id, Mutex &lock)
+      : m_id(id), m_image(image), m_owner_id(owner_id), m_lock(lock) {
+  };
+
+  protected:
+    void *entry() {
+      for (int i = 0; i < 10; i++) {
+	{
+	  Mutex::Locker locker(m_lock);
+	  if (m_owner_id == m_id) {
+	    std::cout << m_id << ": releasing exclusive lock" << std::endl;
+	    EXPECT_EQ(0, rbd_lock_release(m_image));
+	    int lock_owner;
+	    EXPECT_EQ(0, rbd_is_exclusive_lock_owner(m_image, &lock_owner));
+	    EXPECT_FALSE(lock_owner);
+	    m_owner_id = -1;
+	    std::cout << m_id << ": exclusive lock released" << std::endl;
+	    continue;
+	  }
+	}
+
+	std::cout << m_id << ": acquiring exclusive lock" << std::endl;
+        int r;
+        do {
+          r = rbd_lock_acquire(m_image, RBD_LOCK_MODE_EXCLUSIVE);
+          if (r == -EROFS) {
+            usleep(1000);
+          }
+        } while (r == -EROFS);
+	EXPECT_EQ(0, r);
+
+	int lock_owner;
+	EXPECT_EQ(0, rbd_is_exclusive_lock_owner(m_image, &lock_owner));
+	EXPECT_TRUE(lock_owner);
+	std::cout << m_id << ": exclusive lock acquired" << std::endl;
+	{
+	  Mutex::Locker locker(m_lock);
+	  m_owner_id = m_id;
+	}
+	usleep(rand() % 50000);
+      }
+
+      Mutex::Locker locker(m_lock);
+      if (m_owner_id == m_id) {
+	EXPECT_EQ(0, rbd_lock_release(m_image));
+	int lock_owner;
+	EXPECT_EQ(0, rbd_is_exclusive_lock_owner(m_image, &lock_owner));
+	EXPECT_FALSE(lock_owner);
+	m_owner_id = -1;
+      }
+
+      return NULL;
+    }
+
+  private:
+    int m_id;
+    rbd_image_t &m_image;
+    int &m_owner_id;
+    Mutex &m_lock;
+  } ping(1, image1, owner_id, lock), pong(2, image2, owner_id, lock);
+
+  ping.create("ping");
+  pong.create("pong");
+  ping.join();
+  pong.join();
+
+  ASSERT_EQ(0, rbd_lock_acquire(image2, RBD_LOCK_MODE_EXCLUSIVE));
+  ASSERT_EQ(0, rbd_is_exclusive_lock_owner(image2, &lock_owner));
+  ASSERT_TRUE(lock_owner);
+
+  ASSERT_EQ(0, rbd_close(image2));
+
+  ASSERT_EQ(0, rbd_lock_acquire(image1, RBD_LOCK_MODE_EXCLUSIVE));
+  ASSERT_EQ(0, rbd_is_exclusive_lock_owner(image1, &lock_owner));
+  ASSERT_TRUE(lock_owner);
+
+  ASSERT_EQ(0, rbd_close(image1));
+  rados_ioctx_destroy(ioctx);
 }

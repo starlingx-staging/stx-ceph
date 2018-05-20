@@ -1422,11 +1422,14 @@ void OSDService::handle_misdirected_op(PG *pg, OpRequestRef op)
 
   dout(7) << *pg << " misdirected op in " << m->get_map_epoch() << dendl;
   clog->warn() << m->get_source_inst() << " misdirected " << m->get_reqid()
-	      << " pg " << m->get_pg()
-	      << " to osd." << whoami
-	      << " not " << pg->acting
-	      << " in e" << m->get_map_epoch() << "/" << osdmap->get_epoch() << "\n";
-  reply_op_error(op, -ENXIO);
+	       << " pg " << m->get_pg()
+	       << " to osd." << whoami
+	       << " not " << pg->acting
+	       << " in e" << m->get_map_epoch() << "/" << osdmap->get_epoch()
+	       << "\n";
+  if (g_conf->osd_enxio_on_misdirected_op) {
+    reply_op_error(op, -ENXIO);
+  }
 }
 
 
@@ -2939,7 +2942,6 @@ void OSD::add_newly_split_pg(PG *pg, PG::RecoveryCtx *rctx)
   pg->get_osdmap()->pg_to_up_acting_osds(pg->info.pgid.pgid, up, acting);
   int role = OSDMap::calc_pg_role(service.whoami, acting);
   pg->set_role(role);
-  pg->reg_next_scrub();
   pg->handle_loaded(rctx);
   pg->write_if_dirty(*(rctx->transaction));
   pg->queue_null(e, e);
@@ -3077,6 +3079,33 @@ PG *OSD::get_pg_or_queue_for_pg(const spg_t& pgid, OpRequestRef& op)
   }
   session->put();
   return out;
+}
+
+void OSD::dequeue_op_for_pg(const spg_t& pgid, OpRequestRef& op)
+{
+  dout(0) << "dequeue_op_for_pg: pgid=" << pgid << " op=" << op << dendl;
+  Session *session = static_cast<Session*>(
+      op->get_req()->get_connection()->get_priv());
+  if (!session) 
+    return;
+  assert(session->session_dispatch_lock.is_locked());
+  map<spg_t, list<OpRequestRef> >::iterator wlistiter =
+    session->waiting_for_pg.find(pgid);
+  if (wlistiter != session->waiting_for_pg.end()) {
+    for (list<OpRequestRef>::reverse_iterator i = wlistiter->second.rbegin();
+        i != wlistiter->second.rend(); ++i) {
+      if ((*i)->get_reqid() == op->get_reqid()) {
+        wlistiter->second.erase(std::next(i).base());
+        dout(0) << "dequeue_op_for_pg: op removed" << dendl;
+        break;
+      }
+    }
+    if (wlistiter->second.empty()) {
+      clear_session_waiting_on_pg(session, pgid);
+      dout(0) << "dequeue_op_for_pg: clear session waiting on pg" << dendl;
+    }
+  }
+  session->put();
 }
 
 bool OSD::_have_pg(spg_t pgid)
@@ -6436,6 +6465,11 @@ void OSD::sched_scrub()
 	break;
       }
 
+      if (!cct->_conf->osd_scrub_during_recovery && is_recovery_active()) {
+        dout(10) << __func__ << "not scheduling scrub of " << scrub.pgid << " due to active recovery ops" << dendl;
+        break;
+      }
+
       PG *pg = _lookup_lock_pg(scrub.pgid);
       if (!pg)
 	continue;
@@ -8397,6 +8431,14 @@ void OSD::finish_recovery_op(PG *pg, const hobject_t& soid, bool dequeue)
   recovery_wq.unlock();
 }
 
+bool OSD::is_recovery_active()
+{
+  if (recovery_ops_active > 0)
+    return true;
+
+  return false;
+}
+
 // =========================================================
 // OPS
 
@@ -8521,12 +8563,14 @@ void OSD::handle_op(OpRequestRef& op, OSDMapRef& osdmap)
   OSDMapRef send_map = service.try_get_map(m->get_map_epoch());
   // check send epoch
   if (!send_map) {
-    dout(7) << "don't have sender's osdmap; assuming it was valid and that"
+    dequeue_op_for_pg(pgid, op);
+    dout(0) << "don't have sender's osdmap; assuming it was valid and that"
 	    << " client will resend" << dendl;
     return;
   }
   if (!send_map->have_pg_pool(pgid.pool())) {
-    dout(7) << "dropping request; pool did not exist" << dendl;
+    dequeue_op_for_pg(pgid, op);
+    dout(0) << "dropping request; pool did not exist" << dendl;
     clog->warn() << m->get_source_inst() << " invalid " << m->get_reqid()
 		      << " pg " << m->get_pg()
 		      << " to osd." << whoami
@@ -8537,23 +8581,27 @@ void OSD::handle_op(OpRequestRef& op, OSDMapRef& osdmap)
     return;
   }
   if (!send_map->osd_is_valid_op_target(pgid.pgid, whoami)) {
-    dout(7) << "we are invalid target" << dendl;
+    dequeue_op_for_pg(pgid, op);
+    dout(0) << "we are invalid target" << dendl;
     clog->warn() << m->get_source_inst() << " misdirected " << m->get_reqid()
-		      << " pg " << m->get_pg()
-		      << " to osd." << whoami
-		      << " in e" << osdmap->get_epoch()
-		      << ", client e" << m->get_map_epoch()
-		      << " pg " << pgid
-		      << " features " << m->get_connection()->get_features()
-		      << "\n";
-    service.reply_op_error(op, -ENXIO);
+		 << " pg " << m->get_pg()
+		 << " to osd." << whoami
+		 << " in e" << osdmap->get_epoch()
+		 << ", client e" << m->get_map_epoch()
+		 << " pg " << pgid
+		 << " features " << m->get_connection()->get_features()
+		 << "\n";
+    if (g_conf->osd_enxio_on_misdirected_op) {
+      service.reply_op_error(op, -ENXIO);
+    }
     return;
   }
 
   // check against current map too
   if (!osdmap->have_pg_pool(pgid.pool()) ||
       !osdmap->osd_is_valid_op_target(pgid.pgid, whoami)) {
-    dout(7) << "dropping; no longer have PG (or pool); client will retarget"
+    dequeue_op_for_pg(pgid, op);
+    dout(0) << "dropping; no longer have PG (or pool); client will retarget"
 	    << dendl;
     return;
   }

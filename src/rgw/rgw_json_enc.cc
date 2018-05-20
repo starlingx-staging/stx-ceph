@@ -536,8 +536,9 @@ void RGWBucketEntryPoint::dump(Formatter *f) const
 void RGWBucketEntryPoint::decode_json(JSONObj *obj) {
   JSONDecoder::decode_json("bucket", bucket, obj);
   JSONDecoder::decode_json("owner", owner, obj);
-  utime_t ut(creation_time);
+  utime_t ut;
   JSONDecoder::decode_json("creation_time", ut, obj);
+  creation_time = ut.to_real_time();
   JSONDecoder::decode_json("linked", linked, obj);
   JSONDecoder::decode_json("has_bucket_info", has_bucket_info, obj);
   if (has_bucket_info) {
@@ -646,12 +647,14 @@ void RGWBucketInfo::dump(Formatter *f) const
   }
   encode_json("swift_versioning", swift_versioning, f);
   encode_json("swift_ver_location", swift_ver_location, f);
+  encode_json("index_type", (uint32_t)index_type, f);
 }
 
 void RGWBucketInfo::decode_json(JSONObj *obj) {
   JSONDecoder::decode_json("bucket", bucket, obj);
-  utime_t ut(creation_time);
+  utime_t ut;
   JSONDecoder::decode_json("creation_time", ut, obj);
+  creation_time = ut.to_real_time();
   JSONDecoder::decode_json("owner", owner, obj);
   JSONDecoder::decode_json("flags", flags, obj);
   JSONDecoder::decode_json("zonegroup", zonegroup, obj);
@@ -673,6 +676,9 @@ void RGWBucketInfo::decode_json(JSONObj *obj) {
   }
   JSONDecoder::decode_json("swift_versioning", swift_versioning, obj);
   JSONDecoder::decode_json("swift_ver_location", swift_ver_location, obj);
+  uint32_t it;
+  JSONDecoder::decode_json("index_type", it, obj);
+  index_type = (RGWBucketIndexType)it;
 }
 
 void rgw_obj_key::dump(Formatter *f) const
@@ -1037,8 +1043,9 @@ void RGWMetadataLogInfo::dump(Formatter *f) const
 void RGWMetadataLogInfo::decode_json(JSONObj *obj)
 {
   JSONDecoder::decode_json("marker", marker, obj);
-  utime_t ut(last_update);
+  utime_t ut;
   JSONDecoder::decode_json("last_update", ut, obj);
+  last_update = ut.to_real_time();
 }
 
 void RGWDataChangesLogInfo::dump(Formatter *f) const
@@ -1051,8 +1058,9 @@ void RGWDataChangesLogInfo::dump(Formatter *f) const
 void RGWDataChangesLogInfo::decode_json(JSONObj *obj)
 {
   JSONDecoder::decode_json("marker", marker, obj);
-  utime_t ut(last_update);
+  utime_t ut;
   JSONDecoder::decode_json("last_update", ut, obj);
+  last_update = ut.to_real_time();
 }
 
 

@@ -122,6 +122,8 @@ Pool specific commands
   default, and is used as the underlying object name for "read" and
   "write" ops.
   Note: -b *objsize* option is valid only in *write* mode.
+  Note: *write* and *seq* must be run on the same host otherwise the
+  objects created by *write* will have names that will fail *seq*.
 
 :command:`cleanup`
 
@@ -132,13 +134,17 @@ Pool specific commands
   List all key/value pairs stored in the object map of object name.
   The values are dumped in hexadecimal.
 
-:command:`getomapval` *name* *key*
+:command:`getomapval` [ --omap-key-file *file* ] *name* *key* [ *out-file* ]
   Dump the hexadecimal value of key in the object map of object name.
+  If the optional *out-file* argument isn't provided, the value will be
+  written to standard output.
 
-:command:`setomapval` *name* *key* *value*
-  Set the value of key in the object map of object name.
+:command:`setomapval` [ --omap-key-file *file* ] *name* *key* [ *value* ]
+  Set the value of key in the object map of object name. If the optional
+  *value* argument isn't provided, the value will be read from standard
+  input.
 
-:command:`rmomapkey` *name* *key*
+:command:`rmomapkey` [ --omap-key-file *file* ] *name* *key*
   Remove key from the object map of object name.
 
 :command:`getomapheader` *name*

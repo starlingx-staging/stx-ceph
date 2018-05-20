@@ -47,6 +47,15 @@ if [ "${update:-1}" = "1" -o "${update:-1}" = "true" ]; then
         "$id" \
         "${weight:-${defaultweight:-1}}" \
         $location
+    ceph \
+        --cluster="${cluster:-ceph}" \
+        --name="osd.$id" \
+        --keyring="$data/keyring" \
+        osd crush reweight \
+        -- \
+        "osd.$id" \
+        "${weight:-${defaultweight:-1}}" \
+        $location
 fi
 
 if [ -L "$journal" -a ! -e "$journal" ]; then

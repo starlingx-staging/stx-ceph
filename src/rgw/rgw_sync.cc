@@ -244,7 +244,7 @@ int RGWRemoteMetaLog::read_log_info(rgw_mdlog_info *log_info)
   return 0;
 }
 
-int RGWRemoteMetaLog::read_master_log_shards_info(string *master_period, map<int, RGWMetadataLogInfo> *shards_info)
+int RGWRemoteMetaLog::read_master_log_shards_info(const string &master_period, map<int, RGWMetadataLogInfo> *shards_info)
 {
   if (store->is_meta_master()) {
     return 0;
@@ -256,9 +256,7 @@ int RGWRemoteMetaLog::read_master_log_shards_info(string *master_period, map<int
     return ret;
   }
 
-  *master_period = log_info.period;
-
-  return run(new RGWReadRemoteMDLogInfoCR(&sync_env, log_info.period, log_info.num_shards, shards_info));
+  return run(new RGWReadRemoteMDLogInfoCR(&sync_env, master_period, log_info.num_shards, shards_info));
 }
 
 int RGWRemoteMetaLog::read_master_log_shards_next(const string& period, map<int, string> shard_markers, map<int, rgw_mdlog_shard_data> *result)
@@ -733,7 +731,7 @@ class RGWFetchAllMetaCR : public RGWCoroutine {
   list<string> result;
   list<string>::iterator iter;
 
-  RGWShardedOmapCRManager *entries_index;
+  std::unique_ptr<RGWShardedOmapCRManager> entries_index;
 
   RGWContinuousLeaseCR *lease_cr;
   RGWCoroutinesStack *lease_stack;
@@ -746,7 +744,7 @@ public:
   RGWFetchAllMetaCR(RGWMetaSyncEnv *_sync_env, int _num_shards,
                     map<uint32_t, rgw_meta_sync_marker>& _markers) : RGWCoroutine(_sync_env->cct), sync_env(_sync_env),
 						      num_shards(_num_shards),
-						      ret_status(0), entries_index(NULL), lease_cr(nullptr), lease_stack(nullptr),
+						      ret_status(0), lease_cr(nullptr), lease_stack(nullptr),
                                                       lost_lock(false), failed(false), markers(_markers) {
   }
 
@@ -803,15 +801,16 @@ public:
         set_sleeping(true);
         yield;
       }
-      entries_index = new RGWShardedOmapCRManager(sync_env->async_rados, sync_env->store, this, num_shards,
-						  sync_env->store->get_zone_params().log_pool,
-                                                  mdlog_sync_full_sync_index_prefix);
+      entries_index.reset(new RGWShardedOmapCRManager(sync_env->async_rados, sync_env->store, this, num_shards,
+                                                      sync_env->store->get_zone_params().log_pool,
+                                                      mdlog_sync_full_sync_index_prefix));
       yield {
 	call(new RGWReadRESTResourceCR<list<string> >(cct, conn, sync_env->http_manager,
 				       "/admin/metadata", NULL, &sections));
       }
       if (get_ret_status() < 0) {
         ldout(cct, 0) << "ERROR: failed to fetch metadata sections" << dendl;
+        yield entries_index->finish();
         yield lease_cr->go_down();
         drain_all();
 	return set_cr_error(get_ret_status());
@@ -827,6 +826,7 @@ public:
 	}
         if (get_ret_status() < 0) {
           ldout(cct, 0) << "ERROR: failed to fetch metadata section: " << *sections_iter << dendl;
+          yield entries_index->finish();
           yield lease_cr->go_down();
           drain_all();
           return set_cr_error(get_ret_status());
@@ -1187,8 +1187,8 @@ class RGWCloneMetaLogCoroutine : public RGWCoroutine {
   int max_entries = CLONE_MAX_ENTRIES;
 
   RGWRESTReadResource *http_op = nullptr;
+  boost::intrusive_ptr<RGWMetadataLogInfoCompletion> completion;
 
-  int req_ret = 0;
   RGWMetadataLogInfo shard_info;
   rgw_mdlog_shard_data data;
 
@@ -1205,6 +1205,9 @@ public:
   ~RGWCloneMetaLogCoroutine() {
     if (http_op) {
       http_op->put();
+    }
+    if (completion) {
+      completion->cancel();
     }
   }
 
@@ -1258,7 +1261,9 @@ class RGWMetaSyncShardCR : public RGWCoroutine {
 
   bool *reset_backoff;
 
-  map<RGWCoroutinesStack *, string> stack_to_pos;
+  // hold a reference to the cr stack while it's in the map
+  using StackRef = boost::intrusive_ptr<RGWCoroutinesStack>;
+  map<StackRef, string> stack_to_pos;
   map<string, string> pos_to_prev;
 
   bool can_adjust_marker = false;
@@ -1320,7 +1325,7 @@ public:
     int child_ret;
     RGWCoroutinesStack *child;
     while (collect_next(&child_ret, &child)) {
-      map<RGWCoroutinesStack *, string>::iterator iter = stack_to_pos.find(child);
+      auto iter = stack_to_pos.find(child);
       if (iter == stack_to_pos.end()) {
         /* some other stack that we don't care about */
         continue;
@@ -1360,8 +1365,6 @@ public:
 
       ldout(sync_env->cct, 0) << *this << ": adjusting marker pos=" << sync_marker.marker << dendl;
       stack_to_pos.erase(iter);
-
-      child->put();
     }
   }
 
@@ -1432,8 +1435,7 @@ public:
             // fetch remote and write locally
             yield {
               RGWCoroutinesStack *stack = spawn(new RGWMetaSyncSingleEntryCR(sync_env, iter->first, iter->first, MDLOG_STATUS_COMPLETE, marker_tracker), false);
-              stack->get();
-
+              // stack_to_pos holds a reference to the stack
               stack_to_pos[stack] = iter->first;
               pos_to_prev[iter->first] = marker;
             }
@@ -1581,8 +1583,7 @@ public:
               yield {
                 RGWCoroutinesStack *stack = spawn(new RGWMetaSyncSingleEntryCR(sync_env, raw_key, log_iter->id, mdlog_entry.log_data.status, marker_tracker), false);
                 assert(stack);
-                stack->get();
-
+                // stack_to_pos holds a reference to the stack
                 stack_to_pos[stack] = log_iter->id;
                 pos_to_prev[log_iter->id] = marker;
               }
@@ -1672,6 +1673,7 @@ class RGWMetaSyncCR : public RGWCoroutine {
   using StackRef = boost::intrusive_ptr<RGWCoroutinesStack>;
   using RefPair = std::pair<ControlCRRef, StackRef>;
   map<int, RefPair> shard_crs;
+  int ret{0};
 
 public:
   RGWMetaSyncCR(RGWMetaSyncEnv *_sync_env, RGWPeriodHistory::Cursor cursor,
@@ -1681,7 +1683,6 @@ public:
       cursor(cursor), sync_status(_sync_status) {}
 
   int operate() {
-    int ret = 0;
     reenter(this) {
       // loop through one period at a time
       for (;;) {
@@ -1734,7 +1735,10 @@ public:
           }
         }
         // wait for each shard to complete
-        collect(&ret, NULL);
+        while (ret == 0 && num_spawned() > 0) {
+          yield wait_for_child();
+          collect(&ret, nullptr);
+        }
         drain_all();
         {
           // drop shard cr refs under lock
@@ -1876,8 +1880,8 @@ int RGWRemoteMetaLog::run_sync()
       return 0;
     }
     r = read_log_info(&mdlog_info);
-    if (r == -EIO) {
-      // keep retrying if master isn't alive
+    if (r == -EIO || r == -ENOENT) {
+      // keep retrying if master isn't alive or hasn't initialized the log
       ldout(store->ctx(), 10) << __func__ << "(): waiting for master.." << dendl;
       backoff.backoff_sleep();
       continue;
@@ -1908,6 +1912,9 @@ int RGWRemoteMetaLog::run_sync()
       if (sync_status.sync_info.period.empty() ||
           sync_status.sync_info.realm_epoch < mdlog_info.realm_epoch) {
         sync_status.sync_info.state = rgw_meta_sync_info::StateInit;
+        ldout(store->ctx(), 1) << "epoch=" << sync_status.sync_info.realm_epoch
+           << " in sync status comes before remote's oldest mdlog epoch="
+           << mdlog_info.realm_epoch << ", restarting sync" << dendl;
       }
     }
 
@@ -2047,7 +2054,23 @@ int RGWCloneMetaLogCoroutine::state_init()
 
 int RGWCloneMetaLogCoroutine::state_read_shard_status()
 {
-  int ret = mdlog->get_info_async(shard_id, &shard_info, stack->get_completion_mgr(), (void *)stack, &req_ret);
+  const bool add_ref = false; // default constructs with refs=1
+
+  using CompletionRef = boost::intrusive_ptr<RGWMetadataLogInfoCompletion>;
+  completion = CompletionRef(new RGWMetadataLogInfoCompletion(
+    [this](int ret, const cls_log_header& header) {
+      if (ret < 0) {
+        ldout(cct, 1) << "ERROR: failed to read mdlog info with "
+            << cpp_strerror(ret) << dendl;
+      } else {
+        shard_info.marker = header.max_marker;
+        shard_info.last_update = header.max_time.to_real_time();
+      }
+      // wake up parent stack
+      stack->get_completion_mgr()->complete(nullptr, stack);
+    }), add_ref);
+
+  int ret = mdlog->get_info_async(shard_id, completion.get());
   if (ret < 0) {
     ldout(cct, 0) << "ERROR: mdlog->get_info_async() returned ret=" << ret << dendl;
     return set_cr_error(ret);
@@ -2058,6 +2081,8 @@ int RGWCloneMetaLogCoroutine::state_read_shard_status()
 
 int RGWCloneMetaLogCoroutine::state_read_shard_status_complete()
 {
+  completion.reset();
+
   ldout(cct, 20) << "shard_id=" << shard_id << " marker=" << shard_info.marker << " last_update=" << shard_info.last_update << dendl;
 
   marker = shard_info.marker;

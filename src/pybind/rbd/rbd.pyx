@@ -123,6 +123,10 @@ cdef extern from "rbd/librbd.h" nogil:
         time_t last_update
         bint up
 
+    ctypedef enum rbd_lock_mode_t:
+        _RBD_LOCK_MODE_EXCLUSIVE "RBD_LOCK_MODE_EXCLUSIVE"
+        _RBD_LOCK_MODE_SHARED "RBD_LOCK_MODE_SHARED"
+
     void rbd_version(int *major, int *minor, int *extra)
 
     void rbd_image_options_create(rbd_image_options_t* opts)
@@ -190,12 +194,14 @@ cdef extern from "rbd/librbd.h" nogil:
     int rbd_get_stripe_unit(rbd_image_t image, uint64_t *stripe_unit)
     int rbd_get_stripe_count(rbd_image_t image, uint64_t *stripe_count)
     int rbd_get_overlap(rbd_image_t image, uint64_t *overlap)
+    int rbd_get_id(rbd_image_t image, char *id, size_t id_len)
+    int rbd_get_block_name_prefix(rbd_image_t image, char *prefix,
+                                  size_t prefix_len)
     int rbd_get_parent_info(rbd_image_t image,
                             char *parent_poolname, size_t ppoolnamelen,
                             char *parent_name, size_t pnamelen,
                             char *parent_snapname, size_t psnapnamelen)
     int rbd_get_flags(rbd_image_t image, uint64_t *flags)
-    int rbd_is_exclusive_lock_owner(rbd_image_t image, int *is_owner)
     ssize_t rbd_read2(rbd_image_t image, uint64_t ofs, size_t len,
                       char *buf, int op_flags)
     ssize_t rbd_write2(rbd_image_t image, uint64_t ofs, size_t len,
@@ -232,6 +238,16 @@ cdef extern from "rbd/librbd.h" nogil:
     int rbd_unlock(rbd_image_t image, const char *cookie)
     int rbd_break_lock(rbd_image_t image, const char *client,
                        const char *cookie)
+
+    int rbd_is_exclusive_lock_owner(rbd_image_t image, int *is_owner)
+    int rbd_lock_acquire(rbd_image_t image, rbd_lock_mode_t lock_mode)
+    int rbd_lock_release(rbd_image_t image)
+    int rbd_lock_get_owners(rbd_image_t image, rbd_lock_mode_t *lock_mode,
+                            char **lock_owners, size_t *max_lock_owners)
+    void rbd_lock_get_owners_cleanup(char **lock_owners,
+                                     size_t lock_owner_count)
+    int rbd_lock_break(rbd_image_t image, rbd_lock_mode_t lock_mode,
+                       char *lock_owner)
 
     # We use -9000 to propagate Python exceptions. We use except? to make sure
     # things still work as intended if -9000 happens to be a valid errno value
@@ -290,6 +306,9 @@ MIRROR_IMAGE_STATUS_STATE_REPLAYING = _MIRROR_IMAGE_STATUS_STATE_REPLAYING
 MIRROR_IMAGE_STATUS_STATE_STOPPING_REPLAY = _MIRROR_IMAGE_STATUS_STATE_STOPPING_REPLAY
 MIRROR_IMAGE_STATUS_STATE_STOPPED = _MIRROR_IMAGE_STATUS_STATE_STOPPED
 
+RBD_LOCK_MODE_EXCLUSIVE = _RBD_LOCK_MODE_EXCLUSIVE
+RBD_LOCK_MODE_SHARED = _RBD_LOCK_MODE_SHARED
+
 RBD_IMAGE_OPTION_FORMAT = _RBD_IMAGE_OPTION_FORMAT
 RBD_IMAGE_OPTION_FEATURES = _RBD_IMAGE_OPTION_FEATURES
 RBD_IMAGE_OPTION_ORDER = _RBD_IMAGE_OPTION_ORDER
@@ -302,63 +321,94 @@ class Error(Exception):
 
 
 class PermissionError(Error):
-    pass
+    def __init__(self, msg):
+        super(PermissionError, self).__init__(
+                ("RBD permission error (%s)" % msg))
 
 
 class ImageNotFound(Error):
-    pass
+    def __init__(self, msg):
+        super(ImageNotFound, self).__init__(
+                ("RBD image not found (%s)" % msg))
 
 
 class ImageExists(Error):
-    pass
+    def __init__(self, msg):
+        super(ImageExists, self).__init__(
+                ("RBD image already exists (%s)" %msg))
 
 
 class IOError(Error):
-    pass
+    def __init__(self, msg):
+        super(IOError, self).__init__(
+                ("RBD I/O error (%s)" %msg))
 
 
 class NoSpace(Error):
-    pass
+    def __init__(self, msg):
+        super(NoSpace, self).__init__(
+                ("RBD insufficient space available (%s)" %
+                 msg))
 
 
 class IncompleteWriteError(Error):
-    pass
+    def __init__(self, msg):
+        super(IncompleteWriteError, self).__init__(
+                ("RBD incomplete write error (%s)" % msg))
 
 
 class InvalidArgument(Error):
-    pass
+    def __init__(self, msg):
+        super(InvalidArgument, self).__init__(
+                ("RBD invalid argument (%s)" % msg))
 
 
 class LogicError(Error):
-    pass
+    def __init__(self, msg):
+        super(LogicError, self).__init__(
+                ("RBD logic error (%s)" % msg))
 
 
 class ReadOnlyImage(Error):
-    pass
+    def __init__(self, msg):
+        super(ReadOnlyImage, self).__init__(
+                ("RBD read-only image (%s)" % msg))
 
 
 class ImageBusy(Error):
-    pass
+    def __init__(self, msg):
+        super(ImageBusy, self).__init__(
+                "RBD image is busy")
 
 
 class ImageHasSnapshots(Error):
-    pass
+    def __init__(self, msg):
+        super(ImageHasSnapshots, self).__init__(
+                ("RBD image has snapshots (%s)" % msg))
 
 
 class FunctionNotSupported(Error):
-    pass
+    def __init__(self, msg):
+        super(FunctionNotSupported, self).__init__(
+                ("RBD function not supported (%s)" % msg))
 
 
 class ArgumentOutOfRange(Error):
-    pass
+    def __init__(self, msg):
+        super(ArgumentOutOfRange, self).__init__(
+                ("RBD arguments out of range (%s)" % msg))
 
 
 class ConnectionShutdown(Error):
-    pass
+    def __init__(self, msg):
+        super(ConnectionShutdown, self).__init__(
+                ("RBD connection was shutdown (%s)" % msg))
 
 
 class Timeout(Error):
-    pass
+    def __init__(self, msg):
+        super(Timeout, self).__init__(
+                ("RBD operation timeout (%s)" % msg))
 
 
 cdef errno_to_exception = {
@@ -1126,6 +1176,54 @@ cdef class Image(object):
             'parent_name'       : info.parent_name
             }
 
+    def id(self):
+        """
+        Get the RBD v2 internal image id
+
+        :returns: str - image id
+        """
+        cdef:
+            int ret = -errno.ERANGE
+            size_t size = 32
+            char *image_id = NULL
+        try:
+            while ret == -errno.ERANGE and size <= 4096:
+                image_id =  <char *>realloc_chk(image_id, size)
+                with nogil:
+                    ret = rbd_get_id(self.image, image_id, size)
+                if ret == -errno.ERANGE:
+                    size *= 2
+
+            if ret != 0:
+                raise make_ex(ret, 'error getting id for image %s' % (self.name,))
+            return decode_cstr(image_id)
+        finally:
+            free(image_id)
+
+    def block_name_prefix(self):
+        """
+        Get the RBD block name prefix
+
+        :returns: str - block name prefix
+        """
+        cdef:
+            int ret = -errno.ERANGE
+            size_t size = 32
+            char *prefix = NULL
+        try:
+            while ret == -errno.ERANGE and size <= 4096:
+                prefix =  <char *>realloc_chk(prefix, size)
+                with nogil:
+                    ret = rbd_get_block_name_prefix(self.image, prefix, size)
+                if ret == -errno.ERANGE:
+                    size *= 2
+
+            if ret != 0:
+                raise make_ex(ret, 'error getting block name prefix for image %s' % (self.name,))
+            return decode_cstr(prefix)
+        finally:
+            free(prefix)
+
     def parent_info(self):
         """
         Get information about a cloned image's parent (if any)
@@ -1747,6 +1845,54 @@ written." % (self.name, ret, length))
             free(c_addrs)
             free(c_tag)
 
+    def lock_acquire(self, lock_mode):
+        """
+        Acquire a managed lock on the image.
+
+        :param lock_mode: lock mode to set
+        :type lock_mode: int
+        :raises: :class:`ImageBusy` if the lock could not be acquired
+        """
+        cdef:
+            rbd_lock_mode_t _lock_mode = lock_mode
+        with nogil:
+            ret = rbd_lock_acquire(self.image, _lock_mode)
+        if ret < 0:
+            raise make_ex(ret, 'error acquiring lock on image')
+
+    def lock_release(self):
+        """
+        Release a managed lock on the image that was previously acquired.
+        """
+        with nogil:
+            ret = rbd_lock_release(self.image)
+        if ret < 0:
+            raise make_ex(ret, 'error releasing lock on image')
+
+    def lock_get_owners(self):
+        """
+        Iterate over the lock owners of an image.
+
+        :returns: :class:`LockOwnerIterator`
+        """
+        return LockOwnerIterator(self)
+
+    def lock_break(self, lock_mode, lock_owner):
+        """
+        Break the image lock held by a another client.
+
+        :param lock_owner: the owner of the lock to break
+        :type lock_owner: str
+        """
+        lock_owner = cstr(lock_owner, 'lock_owner')
+        cdef:
+            rbd_lock_mode_t _lock_mode = lock_mode
+            char *_lock_owner = lock_owner
+        with nogil:
+            ret = rbd_lock_break(self.image, _lock_mode, _lock_owner)
+        if ret < 0:
+            raise make_ex(ret, 'error breaking lock on image')
+
     def lock_exclusive(self, cookie):
         """
         Take an exclusive lock on the image.
@@ -1928,6 +2074,54 @@ written." % (self.name, ret, length))
         free(c_status.info.global_id)
         free(c_status.description)
         return status
+
+cdef class LockOwnerIterator(object):
+    """
+    Iterator over managed lock owners for an image
+
+    Yields a dictionary containing information about the image's lock
+
+    Keys are:
+
+    * ``mode`` (int) - active lock mode
+
+    * ``owner`` (str) - lock owner name
+    """
+
+    cdef:
+        rbd_lock_mode_t lock_mode
+        char **lock_owners
+        size_t num_lock_owners
+        object image
+
+    def __init__(self, Image image):
+        self.image = image
+        self.lock_owners = NULL
+        self.num_lock_owners = 8
+        while True:
+            self.lock_owners = <char**>realloc_chk(self.lock_owners,
+                                                   self.num_lock_owners *
+                                                   sizeof(char*))
+            with nogil:
+                ret = rbd_lock_get_owners(image.image, &self.lock_mode,
+                                          self.lock_owners,
+                                          &self.num_lock_owners)
+            if ret >= 0:
+                break
+            elif ret != -errno.ERANGE:
+                raise make_ex(ret, 'error listing lock owners for image %s' % (image.name,))
+
+    def __iter__(self):
+        for i in range(self.num_lock_owners):
+            yield {
+                'mode'  : int(self.lock_mode),
+                'owner' : decode_cstr(self.lock_owners[i]),
+                }
+
+    def __dealloc__(self):
+        if self.lock_owners:
+            rbd_lock_get_owners_cleanup(self.lock_owners, self.num_lock_owners)
+            free(self.lock_owners)
 
 cdef class SnapIterator(object):
     """

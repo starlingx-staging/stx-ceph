@@ -6,6 +6,7 @@
 
 #define TIME_BUF_SIZE 128
 
+#include "common/sstring.hh"
 #include "common/ceph_json.h"
 #include "include/assert.h" /* needed because of common/ceph_json.h */
 #include "rgw_op.h"
@@ -257,6 +258,18 @@ public:
   ~RGWDeleteObj_ObjStore() {}
 };
 
+class  RGWGetCrossDomainPolicy_ObjStore : public RGWGetCrossDomainPolicy {
+public:
+  RGWGetCrossDomainPolicy_ObjStore() = default;
+  ~RGWGetCrossDomainPolicy_ObjStore() = default;
+};
+
+class  RGWGetHealthCheck_ObjStore : public RGWGetHealthCheck {
+public:
+  RGWGetHealthCheck_ObjStore() = default;
+  ~RGWGetHealthCheck_ObjStore() = default;
+};
+
 class RGWCopyObj_ObjStore : public RGWCopyObj {
 public:
   RGWCopyObj_ObjStore() {}
@@ -351,6 +364,12 @@ public:
   virtual int get_params();
 };
 
+class RGWInfo_ObjStore : public RGWInfo {
+public:
+    RGWInfo_ObjStore() = default;
+    ~RGWInfo_ObjStore() = default;
+};
+
 class RGWRESTOp : public RGWOp {
 protected:
   int http_ret;
@@ -370,6 +389,7 @@ public:
 
 class RGWHandler_REST : public RGWHandler {
 protected:
+
   virtual bool is_obj_update_op() { return false; }
   virtual RGWOp *op_get() { return NULL; }
   virtual RGWOp *op_put() { return NULL; }
@@ -382,6 +402,9 @@ protected:
   static int allocate_formatter(struct req_state *s, int default_formatter,
 				bool configurable);
 public:
+  static constexpr int MAX_BUCKET_NAME_LEN = 255;
+  static constexpr int MAX_OBJ_NAME_LEN = 1024;
+
   RGWHandler_REST() {}
   virtual ~RGWHandler_REST() {}
 
@@ -411,6 +434,7 @@ class RGWHandler_REST_S3;
 
 class RGWRESTMgr {
   bool should_log;
+
 protected:
   map<string, RGWRESTMgr *> resource_mgrs;
   multimap<size_t, string> resources_by_size;
@@ -425,6 +449,13 @@ public:
 
   virtual RGWRESTMgr *get_resource_mgr(struct req_state *s, const string& uri,
 				       string *out_uri);
+
+  virtual RGWRESTMgr* get_resource_mgr_as_default(struct req_state* s,
+                                                  const std::string& uri,
+                                                  std::string* our_uri) {
+    return this;
+  }
+
   virtual RGWHandler_REST *get_handler(struct req_state *s) { return NULL; }
   virtual void put_handler(RGWHandler_REST *handler) { delete handler; }
 
@@ -435,6 +466,8 @@ public:
 class RGWLibIO;
 
 class RGWREST {
+  using x_header = basic_sstring<char, uint16_t, 32>;
+  std::set<x_header> x_headers;
   RGWRESTMgr mgr;
 
   static int preprocess(struct req_state *s, RGWClientIO *sio);
@@ -448,6 +481,7 @@ public:
 			  RGWLibIO *io, RGWRESTMgr **pmgr,
 			  int *init_error);
 #endif
+
   void put_handler(RGWHandler_REST *handler) {
     mgr.put_handler(handler);
   }
@@ -459,8 +493,19 @@ public:
 
     mgr.register_resource(resource, m);
   }
+
   void register_default_mgr(RGWRESTMgr *m) {
     mgr.register_default_mgr(m);
+  }
+
+  void register_x_headers(const std::string& headers);
+
+  bool log_x_headers(void) {
+    return (x_headers.size() > 0);
+  }
+
+  bool log_x_header(const std::string& header) {
+    return (x_headers.find(header) != x_headers.end());
   }
 };
 

@@ -3,6 +3,7 @@
 
 #include <errno.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 #include <sstream>
 
@@ -1578,8 +1579,8 @@ void RGWSetBucketVersioning::execute()
     op_ret = forward_request_to_master(s, NULL, store, in_data, nullptr);
     if (op_ret < 0) {
       ldout(s->cct, 20) << __func__ << "forward_request_to_master returned ret=" << op_ret << dendl;
+      return;
     }
-    return;
   }
 
   if (enable_versioning) {
@@ -2203,6 +2204,14 @@ void RGWDeleteBucket::execute()
   }
 
   op_ret = store->delete_bucket(s->bucket, ot);
+
+  if (op_ret == -ECANCELED) {
+    // lost a race, either with mdlog sync or another delete bucket operation.
+    // in either case, we've already called rgw_unlink_bucket()
+    op_ret = 0;
+    return;
+  }
+
   if (op_ret == 0) {
     op_ret = rgw_unlink_bucket(store, s->user->user_id, s->bucket.tenant,
 			       s->bucket.name, false);
@@ -4391,6 +4400,16 @@ void RGWListBucketMultiparts::execute()
   }
 }
 
+void RGWGetHealthCheck::execute()
+{
+  if (! g_conf->rgw_healthcheck_disabling_path.empty() &&
+      ::access(g_conf->rgw_healthcheck_disabling_path.c_str(), F_OK )) {
+    op_ret = -ERR_SERVICE_UNAVAILABLE;
+  } else {
+    op_ret = 0; /* 200 OK */
+  }
+}
+
 int RGWDeleteMultiObj::verify_permission()
 {
   if (!verify_bucket_permission(s, RGW_PERM_WRITE))
@@ -4449,7 +4468,8 @@ void RGWDeleteMultiObj::execute()
   for (iter = multi_delete->objects.begin();
         iter != multi_delete->objects.end() && num_processed < max_to_delete;
         ++iter, num_processed++) {
-    rgw_obj obj(bucket, *iter);
+    rgw_obj obj(bucket, iter->name);
+    obj.set_instance(iter->instance);
 
     obj_ctx->set_atomic(obj);
 

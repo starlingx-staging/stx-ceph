@@ -1555,7 +1555,7 @@ int MDSMonitor::management_command(
       }
     }
 
-    if (pending_fsmap.any_filesystems()
+    if (pending_fsmap.filesystem_count() > 0
         && !pending_fsmap.get_enable_multiple()) {
       ss << "Creation of multiple filesystems is disabled.  To enable "
             "this experimental feature, use 'ceph fs flag set enable_multiple "
@@ -2786,14 +2786,20 @@ bool MDSMonitor::maybe_promote_standby(std::shared_ptr<Filesystem> fs)
 	do_propose = true;
       }
     }
-  }
+  } else {
+    // There were no failures to replace, so try using any available standbys
+    // as standby-replay daemons.
 
-  // There were no failures to replace, so try using any available standbys
-  // as standby-replay daemons.
-  if (failed.empty()) {
+    // Take a copy of the standby GIDs so that we can iterate over
+    // them while perhaps-modifying standby_daemons during the loop
+    // (if we promote anyone they are removed from standby_daemons)
+    std::vector<mds_gid_t> standby_gids;
     for (const auto &j : pending_fsmap.standby_daemons) {
-      const auto &gid = j.first;
-      const auto &info = j.second;
+      standby_gids.push_back(j.first);
+    }
+
+    for (const auto &gid : standby_gids) {
+      const auto &info = pending_fsmap.standby_daemons.at(gid);
       assert(info.state == MDSMap::STATE_STANDBY);
 
       if (!info.standby_replay) {
@@ -2819,8 +2825,7 @@ bool MDSMonitor::maybe_promote_standby(std::shared_ptr<Filesystem> fs)
         // that doesn't correspond to an existing filesystem, especially
         // if we loaded from a version with a bug (#17466)
         if (info.standby_for_fscid != FS_CLUSTER_ID_NONE
-            && pending_fsmap.get_filesystems().count(
-              info.standby_for_fscid) == 0) {
+            && !pending_fsmap.filesystem_exists(info.standby_for_fscid)) {
           derr << "gid " << gid << " has invalid standby_for_fscid "
                << info.standby_for_fscid << dendl;
           continue;

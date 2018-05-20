@@ -184,6 +184,7 @@ using ceph::crypto::MD5;
 #define ERR_USER_SUSPENDED       2100
 #define ERR_INTERNAL_ERROR       2200
 #define ERR_NOT_IMPLEMENTED      2201
+#define ERR_SERVICE_UNAVAILABLE  2202
 
 #ifndef UINT32_MAX
 #define UINT32_MAX (0xffffffffu)
@@ -422,6 +423,9 @@ enum RGWOpType {
   RGW_OP_DELETE_MULTI_OBJ,
   RGW_OP_BULK_DELETE,
   RGW_OP_SET_ATTRS,
+  RGW_OP_GET_CROSS_DOMAIN_POLICY,
+  RGW_OP_GET_HEALTH_CHECK,
+  RGW_OP_GET_INFO,
 
   /* rgw specific */
   RGW_OP_ADMIN_SET_METADATA
@@ -689,10 +693,15 @@ struct rgw_bucket {
 
   rgw_bucket() { }
   // cppcheck-suppress noExplicitConstructor
-  rgw_bucket(const cls_user_bucket& b) : name(b.name), data_pool(b.data_pool),
-					 data_extra_pool(b.data_extra_pool),
-					 index_pool(b.index_pool), marker(b.marker),
-					 bucket_id(b.bucket_id) {}
+  explicit rgw_bucket(const rgw_user& u, const cls_user_bucket& b)
+    : tenant(u.tenant),
+      name(b.name),
+      data_pool(b.data_pool),
+      data_extra_pool(b.data_extra_pool),
+      index_pool(b.index_pool),
+      marker(b.marker),
+      bucket_id(b.bucket_id) {
+  }
   rgw_bucket(const string& s) : name(s) {
     data_pool = index_pool = s;
     marker = "";
@@ -1348,11 +1357,13 @@ struct RGWBucketEnt {
 
   RGWBucketEnt() : size(0), size_rounded(0), count(0) {}
 
-  explicit RGWBucketEnt(const cls_user_bucket_entry& e) : bucket(e.bucket),
-		  					  size(e.size), 
-			  				  size_rounded(e.size_rounded),
-							  creation_time(e.creation_time),
-							  count(e.count) {}
+  explicit RGWBucketEnt(const rgw_user& u, const cls_user_bucket_entry& e)
+    : bucket(u, e.bucket),
+      size(e.size),
+      size_rounded(e.size_rounded),
+      creation_time(e.creation_time),
+      count(e.count) {
+  }
 
   void convert(cls_user_bucket_entry *b) {
     bucket.convert(&b->bucket);

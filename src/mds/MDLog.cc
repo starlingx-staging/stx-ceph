@@ -910,6 +910,10 @@ void MDLog::_recovery_thread(MDSInternalContextBase *completion)
     int write_result = jp.save(mds->objecter);
     // Nothing graceful we can do for this
     assert(write_result >= 0);
+  } else if (read_result == -EBLACKLISTED) {
+    derr << "Blacklisted during JournalPointer read!  Respawning..." << dendl;
+    mds->respawn();
+    assert(0); // Should be unreachable because respawn calls execv
   } else if (read_result != 0) {
     mds->clog->error() << "failed to read JournalPointer: " << read_result
                        << " (" << cpp_strerror(read_result) << ")";
@@ -936,7 +940,11 @@ void MDLog::_recovery_thread(MDSInternalContextBase *completion)
     C_SaferCond recover_wait;
     back.recover(&recover_wait);
     int recovery_result = recover_wait.wait();
-    if (recovery_result != 0) {
+    if (recovery_result == -EBLACKLISTED) {
+      derr << "Blacklisted during journal recovery!  Respawning..." << dendl;
+      mds->respawn();
+      assert(0); // Should be unreachable because respawn calls execv
+    } else if (recovery_result != 0) {
       // Journaler.recover succeeds if no journal objects are present: an error
       // means something worse like a corrupt header, which we can't handle here.
       mds->clog->error() << "Error recovering journal " << jp.front << ": "
@@ -979,7 +987,11 @@ void MDLog::_recovery_thread(MDSInternalContextBase *completion)
   int recovery_result = recover_wait.wait();
   dout(4) << "Journal " << jp.front << " recovered." << dendl;
 
-  if (recovery_result != 0) {
+  if (recovery_result == -EBLACKLISTED) {
+    derr << "Blacklisted during journal recovery!  Respawning..." << dendl;
+    mds->respawn();
+    assert(0); // Should be unreachable because respawn calls execv
+  } else if (recovery_result != 0) {
     mds->clog->error() << "Error recovering journal " << jp.front << ": "
       << cpp_strerror(recovery_result);
     mds->damaged_unlocked();
@@ -1404,9 +1416,20 @@ void MDLog::standby_trim_segments()
   bool removed_segment = false;
   while (have_any_segments()) {
     LogSegment *seg = get_oldest_segment();
-    if (seg->end > expire_pos)
+    dout(10) << " segment seq=" << seg->seq << " " << seg->offset <<
+      "~" << seg->end - seg->offset << dendl;
+
+    if (seg->end > expire_pos) {
+      dout(10) << " won't remove, not expired!" << dendl;
       break;
-    dout(10) << " removing segment " << seg->seq << "/" << seg->offset << dendl;
+    }
+
+    if (segments.size() == 1) {
+      dout(10) << " won't remove, last segment!" << dendl;
+      break;
+    }
+
+    dout(10) << " removing segment" << dendl;
     mds->mdcache->standby_trim_segment(seg);
     remove_oldest_segment();
     removed_segment = true;
@@ -1415,8 +1438,9 @@ void MDLog::standby_trim_segments()
   if (removed_segment) {
     dout(20) << " calling mdcache->trim!" << dendl;
     mds->mdcache->trim(-1);
-  } else
+  } else {
     dout(20) << " removed no segments!" << dendl;
+  }
 }
 
 void MDLog::dump_replay_status(Formatter *f) const

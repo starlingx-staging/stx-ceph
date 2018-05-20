@@ -3180,9 +3180,8 @@ void Server::handle_client_openc(MDRequestRef& mdr)
     // file would have inherited anyway from its parent.
     CDir *parent = dn->get_dir();
     CInode *parent_in = parent->get_inode();
-    int64_t parent_pool = parent_in->inode.layout.pool_id;
-
-    if (layout.pool_id != parent_pool) {
+    if (layout.pool_id != parent_in->inode.layout.pool_id
+        || layout.pool_ns != parent_in->inode.layout.pool_ns) {
       access |= MAY_SET_POOL;
     }
 
@@ -3395,7 +3394,9 @@ void Server::handle_client_readdir(MDRequestRef& mdr)
   bufferlist dnbl;
   __u32 numfiles = 0;
   bool end = (dir->begin() == dir->end());
-  for (CDir::map_t::iterator it = dir->begin();
+  // skip all dns < dentry_key_t(snapid, offset_str, offset_hash)
+  dentry_key_t skip_key(snapid, offset_str.c_str(), offset_hash);
+  for (CDir::map_t::iterator it = offset_str.empty() ? dir->begin() : dir->lower_bound(skip_key);
        !end && numfiles < max;
        end = (it == dir->end())) {
     CDentry *dn = it->second;
@@ -3788,12 +3789,19 @@ void Server::handle_client_setattr(MDRequestRef& mdr)
 
   pi = cur->project_inode();
 
-  if (mask & CEPH_SETATTR_MODE)
-    pi->mode = (pi->mode & ~07777) | (req->head.args.setattr.mode & 07777);
   if (mask & CEPH_SETATTR_UID)
     pi->uid = req->head.args.setattr.uid;
   if (mask & CEPH_SETATTR_GID)
     pi->gid = req->head.args.setattr.gid;
+
+  if (mask & CEPH_SETATTR_MODE)
+    pi->mode = (pi->mode & ~07777) | (req->head.args.setattr.mode & 07777);
+  else if ((mask & (CEPH_SETATTR_UID|CEPH_SETATTR_GID)) &&
+	    S_ISREG(pi->mode)) {
+    pi->mode &= ~S_ISUID;
+    if ((pi->mode & (S_ISGID|S_IXGRP)) == (S_ISGID|S_IXGRP))
+      pi->mode &= ~S_ISGID;
+  }
 
   if (mask & CEPH_SETATTR_MTIME)
     pi->mtime = req->head.args.setattr.mtime;
@@ -4239,7 +4247,8 @@ void Server::handle_set_vxattr(MDRequestRef& mdr, CInode *cur,
     if (!mds->locker->acquire_locks(mdr, rdlocks, wrlocks, xlocks))
       return;
 
-    if (cur->inode.layout.pool_id != layout.pool_id) {
+    if (cur->inode.layout.pool_id != layout.pool_id
+        || cur->inode.layout.pool_ns != layout.pool_ns) {
       if (!check_access(mdr, cur, MAY_SET_POOL)) {
         return;
       }
@@ -4290,7 +4299,8 @@ void Server::handle_set_vxattr(MDRequestRef& mdr, CInode *cur,
     if (!mds->locker->acquire_locks(mdr, rdlocks, wrlocks, xlocks))
       return;
 
-    if (cur->inode.layout.pool_id != layout.pool_id) {
+    if (cur->inode.layout.pool_id != layout.pool_id
+        || cur->inode.layout.pool_ns != layout.pool_ns) {
       if (!check_access(mdr, cur, MAY_SET_POOL)) {
         return;
       }
@@ -6000,7 +6010,7 @@ bool Server::_dir_is_nonempty(MDRequestRef& mdr, CInode *in)
 {
   dout(10) << "dir_is_nonempty " << *in << dendl;
   assert(in->is_auth());
-  assert(in->filelock.can_read(-1));
+  assert(in->filelock.can_read(mdr->get_client()));
 
   frag_info_t dirstat;
   version_t dirstat_version = in->get_projected_inode()->dirstat.version;

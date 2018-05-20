@@ -54,7 +54,6 @@ endif
 
 HARDENING_CFLAGS = \
                    -O2 \
-                   -g \
                    -pipe \
                    -Wall \
                    -Wp,-U_FORTIFY_SOURCE \
@@ -62,6 +61,10 @@ HARDENING_CFLAGS = \
                    -fexceptions \
                    --param=ssp-buffer-size=4 \
                    -fPIE
+
+if WITH_DEBUG
+HARDENING_CFLAGS += -g
+endif
 
 SET_STACK_PROTECTOR_STRONG = $(shell expr `$(CC) -dumpversion` \>= 4.9)
 

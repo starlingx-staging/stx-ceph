@@ -660,9 +660,12 @@ OPTION(osd_hit_set_min_size, OPT_INT, 1000)  // min target size for a HitSet
 OPTION(osd_hit_set_max_size, OPT_INT, 100000)  // max target size for a HitSet
 OPTION(osd_hit_set_namespace, OPT_STR, ".ceph-internal") // rados namespace for hit_set tracking
 
-// conservative default throttling values
-OPTION(osd_tier_promote_max_objects_sec, OPT_U64, 5 * 1024*1024)
-OPTION(osd_tier_promote_max_bytes_sec, OPT_U64, 25)
+// These changes in values are based on the upsteam commit: 905c4acb99f9ea78ff615034dae969ab089bda06
+// The original values were 25 objects/second and 5 MB/second, but were considered conservative values.
+// After testing was done, increasing these values 4 times was considered a good compromise between
+// good cached data promotion rate and avoiding throttling.
+OPTION(osd_tier_promote_max_objects_sec, OPT_U64, 100)
+OPTION(osd_tier_promote_max_bytes_sec, OPT_U64, 20 * 1024*1024)
 
 OPTION(osd_tier_default_cache_mode, OPT_STR, "writeback")
 OPTION(osd_tier_default_cache_hit_set_count, OPT_INT, 4)
@@ -748,12 +751,14 @@ OPTION(osd_recovery_delay_start, OPT_FLOAT, 0)
 OPTION(osd_recovery_max_active, OPT_INT, 3)
 OPTION(osd_recovery_max_single_start, OPT_INT, 1)
 OPTION(osd_recovery_max_chunk, OPT_U64, 8<<20)  // max size of push chunk
+OPTION(osd_recovery_max_omap_entries_per_chunk, OPT_U64, 64000) // max number of omap entries per chunk; 0 to disable limit
 OPTION(osd_copyfrom_max_chunk, OPT_U64, 8<<20)   // max size of a COPYFROM chunk
 OPTION(osd_push_per_object_cost, OPT_U64, 1000)  // push cost per object
 OPTION(osd_max_push_cost, OPT_U64, 8<<20)  // max size of push message
 OPTION(osd_max_push_objects, OPT_U64, 10)  // max objects in single push op
 OPTION(osd_recovery_forget_lost_objects, OPT_BOOL, false)   // off for now
 OPTION(osd_max_scrubs, OPT_INT, 1)
+OPTION(osd_scrub_during_recovery, OPT_BOOL, true) // Allow new scrubs to start while recovery is active on the OSD
 OPTION(osd_scrub_begin_hour, OPT_INT, 0)
 OPTION(osd_scrub_end_hour, OPT_INT, 24)
 OPTION(osd_scrub_load_threshold, OPT_FLOAT, 0.5)
@@ -800,6 +805,8 @@ OPTION(osd_debug_skip_full_check_in_backfill_reservation, OPT_BOOL, false)
 OPTION(osd_debug_reject_backfill_probability, OPT_DOUBLE, 0)
 OPTION(osd_debug_inject_copyfrom_error, OPT_BOOL, false)  // inject failure during copyfrom completion
 OPTION(osd_debug_randomize_hobject_sort_order, OPT_BOOL, false)
+OPTION(osd_enxio_on_misdirected_op, OPT_BOOL, false)
+OPTION(osd_debug_verify_cached_snaps, OPT_BOOL, false)
 OPTION(osd_enable_op_tracker, OPT_BOOL, true) // enable/disable OSD op tracking
 OPTION(osd_num_op_tracker_shard, OPT_U32, 32) // The number of shards for holding the ops
 OPTION(osd_op_history_size, OPT_U32, 20)    // Max number of completed ops to track
@@ -1173,6 +1180,7 @@ OPTION(rbd_tracing, OPT_BOOL, false) // true if LTTng-UST tracepoints should be 
 OPTION(rbd_validate_pool, OPT_BOOL, true) // true if empty pools should be validated for RBD compatibility
 OPTION(rbd_validate_names, OPT_BOOL, true) // true if image specs should be validated
 OPTION(rbd_mirroring_resync_after_disconnect, OPT_BOOL, false) // automatically start image resync after mirroring is disconnected due to being laggy
+OPTION(rbd_auto_exclusive_lock_until_manual_request, OPT_BOOL, true) // whether to automatically acquire/release exclusive lock until it is explicitly requested, i.e. before we know the user of librbd is properly using the lock API
 
 /*
  * The following options change the behavior for librbd's image creation methods that
@@ -1284,6 +1292,8 @@ OPTION(rgw_keystone_token_cache_size, OPT_INT, 10000)  // max number of entries 
 OPTION(rgw_keystone_revocation_interval, OPT_INT, 15 * 60)  // seconds between tokens revocation check
 OPTION(rgw_keystone_verify_ssl, OPT_BOOL, true) // should we try to verify keystone's ssl
 OPTION(rgw_keystone_implicit_tenants, OPT_BOOL, false)  // create new users in their own tenants of the same name
+OPTION(rgw_cross_domain_policy, OPT_STR, "<allow-access-from domain=\"*\" secure=\"false\" />")
+OPTION(rgw_healthcheck_disabling_path, OPT_STR, "") // path that existence causes the healthcheck to respond 503
 OPTION(rgw_s3_auth_use_rados, OPT_BOOL, true)  // should we try to use the internal credentials for s3?
 OPTION(rgw_s3_auth_use_keystone, OPT_BOOL, false)  // should we try to use keystone for s3?
 
@@ -1327,6 +1337,9 @@ OPTION(rgw_nfs_lru_lanes, OPT_INT, 5)
 OPTION(rgw_nfs_lru_lane_hiwat, OPT_INT, 911)
 OPTION(rgw_nfs_fhcache_partitions, OPT_INT, 3)
 OPTION(rgw_nfs_fhcache_size, OPT_INT, 2017) /* 3*2017=6051 */
+OPTION(rgw_nfs_namespace_expire_secs, OPT_INT, 300) /* namespace invalidate
+						     * timer */
+OPTION(rgw_nfs_max_gc, OPT_INT, 300) /* max gc events per cycle */
 OPTION(rgw_nfs_write_completion_interval_s, OPT_INT, 10) /* stateless (V3)
 							  * commit
 							  * delay */
@@ -1335,6 +1348,7 @@ OPTION(rgw_zone, OPT_STR, "") // zone name
 OPTION(rgw_zone_root_pool, OPT_STR, ".rgw.root")    // pool where zone specific info is stored
 OPTION(rgw_default_zone_info_oid, OPT_STR, "default.zone")  // oid where default zone info is stored
 OPTION(rgw_region, OPT_STR, "") // region name
+OPTION(rgw_region_root_pool, OPT_STR, ".rgw.root")  // pool where all region info is stored
 OPTION(rgw_default_region_info_oid, OPT_STR, "default.region")  // oid where default region info is stored
 OPTION(rgw_zonegroup, OPT_STR, "") // zone group name
 OPTION(rgw_zonegroup_root_pool, OPT_STR, ".rgw.root")  // pool where all zone group info is stored
@@ -1421,6 +1435,7 @@ OPTION(rgw_objexp_hints_num_shards, OPT_U32, 127) // maximum number of parts in 
 OPTION(rgw_objexp_chunk_size, OPT_U32, 100) // maximum number of entries in a single operation when processing objexp data
 
 OPTION(rgw_enable_static_website, OPT_BOOL, false) // enable static website feature
+OPTION(rgw_log_http_headers, OPT_STR, "" ) // list of HTTP headers to log when seen, ignores case (e.g., http_x_forwarded_for
 
 OPTION(rgw_num_async_rados_threads, OPT_INT, 32) // num of threads to use for async rados operations
 OPTION(rgw_md_notify_interval_msec, OPT_INT, 200) // metadata changes notification interval to followers

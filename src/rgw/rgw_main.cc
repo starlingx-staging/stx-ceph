@@ -255,6 +255,20 @@ int main(int argc, const char **argv)
     }
   }
 
+  // maintain existing region root pool for new multisite objects
+  if (!g_conf->rgw_region_root_pool.empty()) {
+    const char *root_pool = g_conf->rgw_region_root_pool.c_str();
+    if (g_conf->rgw_zonegroup_root_pool.empty()) {
+      g_conf->set_val_or_die("rgw_zonegroup_root_pool", root_pool);
+    }
+    if (g_conf->rgw_period_root_pool.empty()) {
+      g_conf->set_val_or_die("rgw_period_root_pool", root_pool);
+    }
+    if (g_conf->rgw_realm_root_pool.empty()) {
+      g_conf->set_val_or_die("rgw_realm_root_pool", root_pool);
+    }
+  }
+
   check_curl();
 
   if (g_conf->daemonize) {
@@ -325,20 +339,54 @@ int main(int argc, const char **argv)
   }
 
   // S3 website mode is a specialization of S3
-  bool s3website_enabled = apis_map.count("s3website") > 0;
-  if (apis_map.count("s3") > 0 || s3website_enabled)
-    rest.register_default_mgr(set_logging(new RGWRESTMgr_S3(s3website_enabled)));
+  const bool s3website_enabled = apis_map.count("s3website") > 0;
+  // Swift API entrypoint could placed in the root instead of S3
+  const bool swift_at_root = g_conf->rgw_swift_url_prefix == "/";
+  if (apis_map.count("s3") > 0 || s3website_enabled) {
+    if (! swift_at_root) {
+      rest.register_default_mgr(set_logging(new RGWRESTMgr_S3(s3website_enabled)));
+    } else {
+      derr << "Cannot have the S3 or S3 Website enabled together with "
+           << "Swift API placed in the root of hierarchy" << dendl;
+      return EINVAL;
+    }
+  }
 
   if (apis_map.count("swift") > 0) {
     do_swift = true;
     swift_init(g_ceph_context);
-    rest.register_resource(g_conf->rgw_swift_url_prefix,
-			   set_logging(new RGWRESTMgr_SWIFT));
+
+    RGWRESTMgr_SWIFT* const swift_resource = new RGWRESTMgr_SWIFT;
+
+    if (! g_conf->rgw_cross_domain_policy.empty()) {
+      swift_resource->register_resource("crossdomain.xml",
+                          set_logging(new RGWRESTMgr_SWIFT_CrossDomain));
+    }
+
+    swift_resource->register_resource("healthcheck",
+                          set_logging(new RGWRESTMgr_SWIFT_HealthCheck));
+
+    swift_resource->register_resource("info",
+                          set_logging(new RGWRESTMgr_SWIFT_Info));
+
+    if (! swift_at_root) {
+      rest.register_resource(g_conf->rgw_swift_url_prefix,
+                          set_logging(swift_resource));
+    } else {
+      if (store->get_zonegroup().zones.size() > 1) {
+        derr << "Placing Swift API in the root of URL hierarchy while running"
+             << " multi-site configuration requires another instance of RadosGW"
+             << " with S3 API enabled!" << dendl;
+      }
+
+      rest.register_default_mgr(set_logging(swift_resource));
+    }
   }
 
-  if (apis_map.count("swift_auth") > 0)
+  if (apis_map.count("swift_auth") > 0) {
     rest.register_resource(g_conf->rgw_swift_auth_entry,
 			   set_logging(new RGWRESTMgr_SWIFT_Auth));
+  }
 
   if (apis_map.count("admin") > 0) {
     RGWRESTMgr_Admin *admin_resource = new RGWRESTMgr_Admin;
@@ -355,6 +403,9 @@ int main(int argc, const char **argv)
     admin_resource->register_resource("realm", new RGWRESTMgr_Realm);
     rest.register_resource(g_conf->rgw_admin_entry, admin_resource);
   }
+
+  /* Header custom behavior */
+  rest.register_x_headers(g_conf->rgw_log_http_headers);
 
   OpsLogSocket *olog = NULL;
 

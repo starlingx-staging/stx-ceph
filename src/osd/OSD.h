@@ -1946,6 +1946,7 @@ protected:
   PGPool _get_pool(int id, OSDMapRef createmap);
 
   PG *get_pg_or_queue_for_pg(const spg_t& pgid, OpRequestRef& op);
+  void dequeue_op_for_pg(const spg_t& pgid, OpRequestRef& op);
   bool  _have_pg(spg_t pgid);
   PG   *_lookup_lock_pg_with_map_lock_held(spg_t pgid);
   PG   *_lookup_lock_pg(spg_t pgid);
@@ -2283,6 +2284,7 @@ protected:
 
   void start_recovery_op(PG *pg, const hobject_t& soid);
   void finish_recovery_op(PG *pg, const hobject_t& soid, bool dequeue);
+  bool is_recovery_active();
   void do_recovery(PG *pg, ThreadPool::TPHandle &handle);
   bool _recover_now();
 

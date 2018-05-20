@@ -9,6 +9,7 @@ import rados
 import textwrap
 import xml.etree.ElementTree
 import xml.sax.saxutils
+import time
 
 import flask
 from ceph_argparse import \
@@ -57,6 +58,8 @@ def find_up_osd(app):
         raise EnvironmentError(errno.EINVAL, 'Invalid JSON back from osd dump')
     osds = [osd['osd'] for osd in osddump['osds'] if osd['up']]
     if not osds:
+        # This is not a fatal error.
+        app.logger.info('No up OSDs found')
         return None
     return int(osds[-1])
 
@@ -101,9 +104,36 @@ def api_setup(app, conf, cluster, clientname, clientid, args):
     clientid = clientid or DEFAULT_ID
     clientname = clientname or 'client.' + clientid
 
-    app.ceph_cluster = rados.Rados(name=clientname, conffile=conf)
-    app.ceph_cluster.conf_parse_argv(args)
-    app.ceph_cluster.connect()
+    # Added a mechanism to make the ceph-rest-api retry until it is able to
+    # connect to the Ceph cluster. Originally, it would try once and then
+    # the process would die.
+    connected = False
+    while not connected:
+        app.ceph_cluster = rados.Rados(name=clientname, conffile=conf)
+        app.ceph_cluster.conf_parse_argv(args)
+
+        while True:
+            try:
+                # Only block for 20 seconds waiting to connect.
+                app.ceph_cluster.connect(timeout=20)
+            except rados.InProgress:
+                # Wait before retrying. If the connection is in-progress, the
+                # connect returns immediately.
+                print "Connection attempt in progress - re-trying"
+                time.sleep(10)
+                continue
+            except rados.TimedOut:
+                print "Connection TimedOut - shutting down and re-trying"
+                app.ceph_cluster.shutdown()
+                break
+            except Exception as e:
+                # Keep trying to connect until successful
+                print "Exception from connect: {}".format(e)
+                time.sleep(10)
+                continue
+
+            connected = True
+            break
 
     app.ceph_baseurl = app.ceph_cluster.conf_get('restapi_base_url') \
         or DEFAULT_BASEURL
@@ -136,7 +166,8 @@ def api_setup(app, conf, cluster, clientname, clientid, args):
     app.logger.setLevel(LOGLEVELS[loglevel.lower()])
     for h in app.logger.handlers:
         h.setFormatter(logging.Formatter(
-            '%(asctime)s %(name)s %(levelname)s: %(message)s'))
+            '%(asctime)s %(name)s %(levelname)s: %(message)s',
+            '%FT%T'))
 
     app.ceph_sigdict = get_command_descriptions(app.ceph_cluster)
 
@@ -474,7 +505,8 @@ def handler(catchall_path=None, fmt=None, target=None):
     app.logger.debug('sending command prefix %s argdict %s', prefix, argdict)
     ret, outbuf, outs = json_command(app.ceph_cluster, prefix=prefix,
                                      target=cmdtarget,
-                                     inbuf=flask.request.data, argdict=argdict)
+                                     inbuf=flask.request.data, argdict=argdict,
+                                     timeout=30)
     if ret:
         return make_response(fmt, '', 'Error: {0} ({1})'.format(outs, ret), 400)
 

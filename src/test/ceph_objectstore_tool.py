@@ -37,7 +37,7 @@ import logging
 import json
 import tempfile
 
-logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.WARNING)
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.WARNING, datefmt="%FT%T")
 
 
 def wait_for_health():

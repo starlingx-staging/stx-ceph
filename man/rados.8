@@ -1,6 +1,6 @@
 .\" Man page generated from reStructuredText.
 .
-.TH "RADOS" "8" "December 05, 2016" "dev" "Ceph"
+.TH "RADOS" "8" "March 07, 2017" "dev" "Ceph"
 .SH NAME
 rados \- rados object storage utility
 .
@@ -146,6 +146,8 @@ is an arbitrary object name. It is "benchmark_last_metadata" by
 default, and is used as the underlying object name for "read" and
 "write" ops.
 Note: \-b \fIobjsize\fP option is valid only in \fIwrite\fP mode.
+Note: \fIwrite\fP and \fIseq\fP must be run on the same host otherwise the
+objects created by \fIwrite\fP will have names that will fail \fIseq\fP\&.
 .UNINDENT
 .sp
 \fBcleanup\fP
@@ -158,13 +160,17 @@ List all the keys stored in the object map of object name.
 List all key/value pairs stored in the object map of object name.
 The values are dumped in hexadecimal.
 .TP
-.B \fBgetomapval\fP \fIname\fP \fIkey\fP
+.B \fBgetomapval\fP [ \-\-omap\-key\-file \fIfile\fP ] \fIname\fP \fIkey\fP [ \fIout\-file\fP ]
 Dump the hexadecimal value of key in the object map of object name.
+If the optional \fIout\-file\fP argument isn\(aqt provided, the value will be
+written to standard output.
 .TP
-.B \fBsetomapval\fP \fIname\fP \fIkey\fP \fIvalue\fP
-Set the value of key in the object map of object name.
+.B \fBsetomapval\fP [ \-\-omap\-key\-file \fIfile\fP ] \fIname\fP \fIkey\fP [ \fIvalue\fP ]
+Set the value of key in the object map of object name. If the optional
+\fIvalue\fP argument isn\(aqt provided, the value will be read from standard
+input.
 .TP
-.B \fBrmomapkey\fP \fIname\fP \fIkey\fP
+.B \fBrmomapkey\fP [ \-\-omap\-key\-file \fIfile\fP ] \fIname\fP \fIkey\fP
 Remove key from the object map of object name.
 .TP
 .B \fBgetomapheader\fP \fIname\fP

@@ -170,6 +170,7 @@ class Ptype(object):
                 return True
         return False
 
+
 DEFAULT_FS_TYPE = 'xfs'
 SYSFS = '/sys'
 
@@ -267,7 +268,12 @@ class Error(Exception):
 
     def __str__(self):
         doc = _bytes2str(self.__doc__.strip())
-        return ': '.join([doc] + [_bytes2str(a) for a in self.args])
+        try:
+            str_type = basestring
+        except NameError:
+            str_type = str
+        args = [a if isinstance(a, str_type) else str(a) for a in self.args]
+        return ': '.join([doc] + [_bytes2str(a) for a in args])
 
 
 class MountError(Error):
@@ -1385,16 +1391,22 @@ def check_journal_reqs(args):
         'ceph-osd', '--check-allows-journal',
         '-i', '0',
         '--cluster', args.cluster,
+        '--setuser', get_ceph_user(),
+        '--setgroup', get_ceph_group(),
     ])
     _, _, wants_journal = command([
         'ceph-osd', '--check-wants-journal',
         '-i', '0',
         '--cluster', args.cluster,
+        '--setuser', get_ceph_user(),
+        '--setgroup', get_ceph_group(),
     ])
     _, _, needs_journal = command([
         'ceph-osd', '--check-needs-journal',
         '-i', '0',
         '--cluster', args.cluster,
+        '--setuser', get_ceph_user(),
+        '--setgroup', get_ceph_group(),
     ])
     return (not allows_journal, not wants_journal, not needs_journal)
 
@@ -1756,6 +1768,13 @@ class Prepare(object):
             default='/etc/ceph/dmcrypt-keys',
             help='directory where dm-crypt keys are stored',
         )
+        parser.add_argument(
+            '--prepare-key',
+            metavar='PATH',
+            help='bootstrap-osd keyring path template (%(default)s)',
+            default='{statedir}/bootstrap-osd/{cluster}.keyring',
+            dest='prepare_key_template',
+        )
         return parser
 
     @staticmethod
@@ -1863,6 +1882,7 @@ class PrepareSpace(object):
             setattr(self.args, self.name + '_uuid', str(uuid.uuid4()))
         self.space_symlink = None
         self.space_dmcrypt = None
+        self.wipe_device = False
 
     def set_type(self):
         name = self.name
@@ -2097,6 +2117,17 @@ class PrepareSpace(object):
                 ],
             )
 
+        if self.wipe_device:
+            LOG.debug('Erasing partition %s',
+                      self.space_symlink)
+            command(
+                [
+                    'dd',
+                    'if=/dev/zero',
+                    'of=' + self.space_symlink,
+                ],
+            )
+
         LOG.debug('%s is GPT partition %s',
                   self.name.capitalize(),
                   self.space_symlink)
@@ -2114,6 +2145,7 @@ class PrepareJournal(PrepareSpace):
             raise Error('journal specified but not allowed by osd backend')
 
         super(PrepareJournal, self).__init__(args)
+        self.wipe_device = True
 
     def wants_space(self):
         return self.wants_journal
@@ -2277,9 +2309,14 @@ class Lockbox(object):
         key_size = CryptHelpers.get_dmcrypt_keysize(self.args)
         key = open('/dev/urandom', 'rb').read(key_size / 8)
         base64_key = base64.b64encode(key)
+        cluster = self.args.cluster
+        bootstrap = self.args.prepare_key_template.format(cluster=cluster,
+                                                          statedir=STATEDIR)
         command_check_call(
             [
                 'ceph',
+                '--name', 'client.bootstrap-osd',
+                '--keyring', bootstrap,
                 'config-key',
                 'put',
                 'dm-crypt/osd/' + self.args.osd_uuid + '/luks',
@@ -2289,6 +2326,8 @@ class Lockbox(object):
         keyring, stderr, ret = command(
             [
                 'ceph',
+                '--name', 'client.bootstrap-osd',
+                '--keyring', bootstrap,
                 'auth',
                 'get-or-create',
                 'client.osd-lockbox.' + self.args.osd_uuid,
@@ -2726,8 +2765,7 @@ def mkfs(
                 '--osd-data', path,
                 '--osd-uuid', fsid,
                 '--keyring', os.path.join(path, 'keyring'),
-                '--setuser', get_ceph_user(),
-                '--setgroup', get_ceph_user(),
+                # TIS: don't run as ceph
             ],
         )
     else:
@@ -2743,8 +2781,7 @@ def mkfs(
                 '--osd-journal', os.path.join(path, 'journal'),
                 '--osd-uuid', fsid,
                 '--keyring', os.path.join(path, 'keyring'),
-                '--setuser', get_ceph_user(),
-                '--setgroup', get_ceph_group(),
+                # TIS: don't run as ceph
             ],
         )
 
@@ -2882,10 +2919,19 @@ def start_daemon(
                 ],
             )
         elif os.path.exists(os.path.join(path, 'systemd')):
+            # ensure there is no duplicate ceph-osd@.service
+            command_check_call(
+                [
+                    'systemctl',
+                    'disable',
+                    'ceph-osd@{osd_id}'.format(osd_id=osd_id),
+                ],
+            )
             command_check_call(
                 [
                     'systemctl',
                     'enable',
+                    '--runtime',
                     'ceph-osd@{osd_id}'.format(osd_id=osd_id),
                 ],
             )
@@ -2943,6 +2989,7 @@ def stop_daemon(
                 [
                     'systemctl',
                     'disable',
+                    '--runtime',
                     'ceph-osd@{osd_id}'.format(osd_id=osd_id),
                 ],
             )
@@ -3839,6 +3886,10 @@ def get_dev_fs(dev):
     )
     if 'TYPE' in fscheck:
         fstype = fscheck.split()[1].split('"')[1]
+        if isinstance(fstype, str):
+            fstype = fstype.translate(None, " \\")
+        elif isinstance(fstype, unicode):
+            fstype = fstype.translate({ord(u' '): None, ord(u'\\'): None})
         return fstype
     else:
         return None
@@ -3962,6 +4013,8 @@ def list_format_more_osd_info_plain(dev):
             desc.append('unknown cluster ' + dev['ceph_fsid'])
     if dev.get('whoami'):
         desc.append('osd.%s' % dev['whoami'])
+    if dev.get('uuid'):
+        desc.append('osd uuid %s' % dev['uuid'])
     for name in Space.NAMES:
         if dev.get(name + '_dev'):
             desc.append(name + ' %s' % dev[name + '_dev'])
@@ -4302,6 +4355,8 @@ def main_trigger(args):
         )
         return
 
+    if get_ceph_user() == 'ceph':
+        command_check_call(['chown', 'ceph:ceph', args.dev])
     parttype = get_partition_type(args.dev)
     partid = get_partition_uuid(args.dev)
 
@@ -5007,6 +5062,7 @@ def main_catch(func, args):
 
 def run():
     main(sys.argv[1:])
+
 
 if __name__ == '__main__':
     main(sys.argv[1:])

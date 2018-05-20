@@ -56,7 +56,8 @@ void SetSnapRequest<I>::send_init_exclusive_lock() {
     }
   }
 
-  if (!m_image_ctx.test_features(RBD_FEATURE_EXCLUSIVE_LOCK)) {
+  if (m_image_ctx.read_only ||
+      !m_image_ctx.test_features(RBD_FEATURE_EXCLUSIVE_LOCK)) {
     int r = 0;
     if (send_refresh_parent(&r) != nullptr) {
       send_complete();
@@ -261,7 +262,7 @@ Context *SetSnapRequest<I>::send_open_object_map(int *result) {
   using klass = SetSnapRequest<I>;
   Context *ctx = create_context_callback<
     klass, &klass::handle_open_object_map>(this);
-  m_object_map = new ObjectMap(m_image_ctx, m_snap_id);
+  m_object_map = ObjectMap<I>::create(m_image_ctx, m_snap_id);
   m_object_map->open(ctx);
   return nullptr;
 }

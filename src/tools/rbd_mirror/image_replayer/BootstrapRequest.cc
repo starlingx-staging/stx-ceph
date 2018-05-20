@@ -4,6 +4,7 @@
 #include "BootstrapRequest.h"
 #include "CloseImageRequest.h"
 #include "CreateImageRequest.h"
+#include "IsPrimaryRequest.h"
 #include "OpenImageRequest.h"
 #include "OpenLocalImageRequest.h"
 #include "common/debug.h"
@@ -51,6 +52,7 @@ BootstrapRequest<I>::BootstrapRequest(
         Journaler *journaler,
         MirrorPeerClientMeta *client_meta,
         Context *on_finish,
+        bool *do_resync,
         rbd::mirror::ProgressContext *progress_ctx)
   : BaseRequest("rbd::mirror::image_replayer::BootstrapRequest",
 		reinterpret_cast<CephContext*>(local_io_ctx.cct()), on_finish),
@@ -62,6 +64,7 @@ BootstrapRequest<I>::BootstrapRequest(
     m_local_mirror_uuid(local_mirror_uuid),
     m_remote_mirror_uuid(remote_mirror_uuid), m_journaler(journaler),
     m_client_meta(client_meta), m_progress_ctx(progress_ctx),
+    m_do_resync(do_resync),
     m_lock(unique_lock_name("BootstrapRequest::m_lock", this)) {
 }
 
@@ -72,6 +75,8 @@ BootstrapRequest<I>::~BootstrapRequest() {
 
 template <typename I>
 void BootstrapRequest<I>::send() {
+  *m_do_resync = false;
+
   get_local_image_id();
 }
 
@@ -252,9 +257,6 @@ void BootstrapRequest<I>::open_remote_image() {
 
 template <typename I>
 void BootstrapRequest<I>::handle_open_remote_image(int r) {
-  // deduce the class type for the journal to support unit tests
-  typedef typename std::decay<decltype(*I::journal)>::type Journal;
-
   dout(20) << ": r=" << r << dendl;
 
   if (r < 0) {
@@ -264,18 +266,36 @@ void BootstrapRequest<I>::handle_open_remote_image(int r) {
     return;
   }
 
-  // TODO: make async
-  bool tag_owner;
-  r = Journal::is_tag_owner(m_remote_image_ctx, &tag_owner);
+  is_primary();
+}
+
+template <typename I>
+void BootstrapRequest<I>::is_primary() {
+  dout(20) << dendl;
+
+  update_progress("OPEN_REMOTE_IMAGE");
+
+  Context *ctx = create_context_callback<
+    BootstrapRequest<I>, &BootstrapRequest<I>::handle_is_primary>(
+      this);
+  IsPrimaryRequest<I> *request = IsPrimaryRequest<I>::create(m_remote_image_ctx,
+                                                             &m_primary, ctx);
+  request->send();
+}
+
+template <typename I>
+void BootstrapRequest<I>::handle_is_primary(int r) {
+  dout(20) << ": r=" << r << dendl;
+
   if (r < 0) {
-    derr << ": failed to query remote image primary status: " << cpp_strerror(r)
+    derr << ": error querying remote image primary status: " << cpp_strerror(r)
          << dendl;
     m_ret_val = r;
     close_remote_image();
     return;
   }
 
-  if (!tag_owner) {
+  if (!m_primary) {
     dout(5) << ": remote image is not primary -- skipping image replay"
             << dendl;
     m_ret_val = -EREMOTEIO;
@@ -369,7 +389,33 @@ void BootstrapRequest<I>::handle_open_local_image(int r) {
     m_ret_val = r;
     close_remote_image();
     return;
-  } if (m_client.state == cls::journal::CLIENT_STATE_DISCONNECTED) {
+  }
+
+  I *local_image_ctx = (*m_local_image_ctx);
+  {
+    RWLock::RLocker snap_locker(local_image_ctx->snap_lock);
+    if (local_image_ctx->journal == nullptr) {
+      derr << ": local image does not support journaling" << dendl;
+      m_ret_val = -EINVAL;
+      close_local_image();
+      return;
+    }
+
+    r = (*m_local_image_ctx)->journal->is_resync_requested(m_do_resync);
+    if (r < 0) {
+      derr << ": failed to check if a resync was requested" << dendl;
+      m_ret_val = r;
+      close_local_image();
+      return;
+    }
+  }
+
+  if (*m_do_resync) {
+    close_remote_image();
+    return;
+  }
+
+  if (m_client.state == cls::journal::CLIENT_STATE_DISCONNECTED) {
     dout(10) << ": client flagged disconnected -- skipping bootstrap" << dendl;
     // The caller is expected to detect disconnect initializing remote journal.
     m_ret_val = 0;
@@ -509,7 +555,7 @@ void BootstrapRequest<I>::handle_get_remote_tags(int r) {
   {
     RWLock::RLocker snap_locker(local_image_ctx->snap_lock);
     if (local_image_ctx->journal == nullptr) {
-      derr << "local image does not support journaling" << dendl;
+      derr << ": local image does not support journaling" << dendl;
       m_ret_val = -EINVAL;
       close_local_image();
       return;

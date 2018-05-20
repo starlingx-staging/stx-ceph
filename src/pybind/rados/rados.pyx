@@ -276,80 +276,126 @@ class Error(Exception):
 
 
 class InvalidArgument(Error):
-    pass
+    def __init__(self, msg):
+        super(InvalidArgument, self).__init__(
+                ("RADOS Invalid Argument error (%s)" % msg))
 
 
 class InterruptedOrTimeoutError(Error):
     """ `InterruptedOrTimeoutError` class, derived from `Error` """
-    pass
+    def __init__(self, msg):
+        super(InterruptedOrTimeoutError, self).__init__(
+                ("RADOS Interrupted or Timeout error (%s)" % msg))
 
 
 class PermissionError(Error):
     """ `PermissionError` class, derived from `Error` """
-    pass
+    def __init__(self, msg):
+        super(PermissionError, self).__init__(
+                ("RADOS Permission error (%s)" % msg))
 
 class PermissionDeniedError(Error):
     """ deal with EACCES related. """
-    pass
+    def __init__(self, msg):
+        super(PermissionDeniedError, self).__init__(
+                ("RADOS Permission Denied error (%s)" % msg))
 
 class ObjectNotFound(Error):
     """ `ObjectNotFound` class, derived from `Error` """
-    pass
+    def __init__(self, msg):
+        super(ObjectNotFound, self).__init__(
+                ("RADOS Object Not Found error (%s)" % msg))
 
 
 class NoData(Error):
     """ `NoData` class, derived from `Error` """
-    pass
+    def __init__(self, msg):
+        super(NoData, self).__init__(
+                ("RADOS No Data error (%s)" % msg))
 
 
 class ObjectExists(Error):
     """ `ObjectExists` class, derived from `Error` """
-    pass
+    def __init__(self, msg):
+        super(ObjectExists, self).__init__(
+                ("RADOS Object Exists error (%s)" % msg))
 
 
 class ObjectBusy(Error):
     """ `ObjectBusy` class, derived from `Error` """
-    pass
+    def __init__(self, msg):
+        super(ObjectBusy, self).__init__(
+                ("RADOS Object Busy error (%s)" % msg))
 
 
 class IOError(Error):
     """ `IOError` class, derived from `Error` """
-    pass
+    def __init__(self, msg):
+        super(IOError, self).__init__(
+                ("RADOS I/O error (%s)" % msg))
 
 
 class NoSpace(Error):
     """ `NoSpace` class, derived from `Error` """
-    pass
+    def __init__(self, msg):
+        super(NoSpace, self).__init__(
+                ("RADOS No Space error (%s)" % msg))
 
 
 class IncompleteWriteError(Error):
     """ `IncompleteWriteError` class, derived from `Error` """
-    pass
+    def __init__(self, msg):
+        super(IncompleteWriteError, self).__init__(
+                ("RADOS Incomplete Write error (%s)" % msg))
 
 
 class RadosStateError(Error):
     """ `RadosStateError` class, derived from `Error` """
-    pass
+    def __init__(self, msg):
+        super(RadosStateError, self).__init__(
+                ("RADOS Rados State error (%s)" % msg))
 
 
 class IoctxStateError(Error):
     """ `IoctxStateError` class, derived from `Error` """
-    pass
+    def __init__(self, msg):
+        super(IoctxStateError, self).__init__(
+                ("RADOS Ioctx State error (%s)" % msg))
+
 
 class ObjectStateError(Error):
     """ `ObjectStateError` class, derived from `Error` """
-    pass
+    def __init__(self, msg):
+        super(ObjectStateError, self).__init__(
+                ("RADOS Object State error (%s)" % msg))
 
 
 class LogicError(Error):
     """ `` class, derived from `Error` """
-    pass
+    def __init__(self, msg):
+        super(LogicError, self).__init__(
+                ("RADOS Logic error (%s)" % msg))
 
 
 class TimedOut(Error):
     """ `TimedOut` class, derived from `Error` """
-    pass
+    def __init__(self, msg):
+        super(TimedOut, self).__init__(
+                ("RADOS Timed Out error (%s)" % msg))
 
+
+class InProgress(Error):
+    """ `InProgress` class, derived from `Error` """
+    def __init__(self, msg):
+        super(TimedOut, self).__init__(
+                ("RADOS In Progress error (%s)" % msg))
+
+
+class IsConnected(Error):
+    """ `IsConnected` class, derived from `Error` """
+    def __init__(self, msg):
+        super(TimedOut, self).__init__(
+                ("RADOS Is Connected error (%s)" % msg))
 
 
 cdef errno_to_exception = {
@@ -362,7 +408,9 @@ cdef errno_to_exception = {
     errno.ENODATA   : NoData,
     errno.EINTR     : InterruptedOrTimeoutError,
     errno.ETIMEDOUT : TimedOut,
-    errno.EACCES    : PermissionDeniedError
+    errno.EACCES    : PermissionDeniedError,
+    errno.EINPROGRESS : InProgress,
+    errno.EISCONN   : IsConnected
 }
 
 
@@ -781,7 +829,7 @@ Rados object in state %s." % self.state)
         # for now and remove it later
         with nogil:
             ret = rados_connect(self.cluster)
-        if (ret != 0):
+        if (ret != 0 and ret != -errno.EISCONN):
             raise make_ex(ret, "error connecting to the cluster")
         self.state = "connected"
 

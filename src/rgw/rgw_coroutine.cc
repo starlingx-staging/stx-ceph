@@ -33,7 +33,6 @@ void RGWCompletionManager::register_completion_notifier(RGWAioCompletionNotifier
   Mutex::Locker l(lock);
   if (cn) {
     cns.insert(cn);
-    cn->get();
   }
 }
 
@@ -42,7 +41,6 @@ void RGWCompletionManager::unregister_completion_notifier(RGWAioCompletionNotifi
   Mutex::Locker l(lock);
   if (cn) {
     cns.erase(cn);
-    cn->put();
   }
 }
 
@@ -50,7 +48,6 @@ void RGWCompletionManager::_complete(RGWAioCompletionNotifier *cn, void *user_in
 {
   if (cn) {
     cns.erase(cn);
-    cn->put();
   }
   complete_reqs.push_back(user_info);
   cond.Signal();
@@ -363,8 +360,6 @@ bool RGWCoroutinesStack::collect(int *ret, RGWCoroutinesStack *skip_stack) /* re
   return collect(NULL, ret, skip_stack);
 }
 
-static void _aio_completion_notifier_cb(librados::completion_t cb, void *arg);
-
 static void _aio_completion_notifier_cb(librados::completion_t cb, void *arg)
 {
   ((RGWAioCompletionNotifier *)arg)->cb();
@@ -372,7 +367,8 @@ static void _aio_completion_notifier_cb(librados::completion_t cb, void *arg)
 
 RGWAioCompletionNotifier::RGWAioCompletionNotifier(RGWCompletionManager *_mgr, void *_user_data) : completion_mgr(_mgr),
                                                                          user_data(_user_data), lock("RGWAioCompletionNotifier"), registered(true) {
-  c = librados::Rados::aio_create_completion((void *)this, _aio_completion_notifier_cb, NULL);
+  c = librados::Rados::aio_create_completion((void *)this, NULL,
+					     _aio_completion_notifier_cb);
 }
 
 RGWAioCompletionNotifier *RGWCoroutinesStack::create_completion_notifier()
@@ -451,6 +447,7 @@ int RGWCoroutinesManager::run(list<RGWCoroutinesStack *>& stacks)
   int ret = 0;
   int blocked_count = 0;
   int interval_wait_count = 0;
+  bool canceled = false; // set on going_down
   RGWCoroutinesEnv env;
 
   uint64_t run_context = run_context_count.inc();
@@ -562,20 +559,19 @@ int RGWCoroutinesManager::run(list<RGWCoroutinesStack *>& stacks)
       if (going_down.read() > 0) {
 	ldout(cct, 5) << __func__ << "(): was stopped, exiting" << dendl;
 	ret = -ECANCELED;
+        canceled = true;
         break;
       }
       handle_unblocked_stack(context_stacks, scheduled_stacks, blocked_stack, &blocked_count);
       iter = scheduled_stacks.begin();
     }
-    if (ret == -ECANCELED) {
+    if (canceled) {
       break;
     }
 
     if (iter == scheduled_stacks.end()) {
       iter = scheduled_stacks.begin();
     }
-
-    ret = 0;
   }
 
   lock.get_write();

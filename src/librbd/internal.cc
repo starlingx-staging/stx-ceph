@@ -38,6 +38,11 @@
 #include "librbd/Operations.h"
 #include "librbd/parent_types.h"
 #include "librbd/Utils.h"
+#include "librbd/exclusive_lock/AutomaticPolicy.h"
+#include "librbd/exclusive_lock/BreakRequest.h"
+#include "librbd/exclusive_lock/GetLockerRequest.h"
+#include "librbd/exclusive_lock/StandardPolicy.h"
+#include "librbd/exclusive_lock/Types.h"
 #include "librbd/operation/TrimRequest.h"
 #include "include/util.h"
 
@@ -76,7 +81,7 @@ int remove_object_map(ImageCtx *ictx) {
   int r;
   for (std::map<snap_t, SnapInfo>::iterator it = ictx->snap_info.begin();
        it != ictx->snap_info.end(); ++it) {
-    std::string oid(ObjectMap::object_map_name(ictx->id, it->first));
+    std::string oid(ObjectMap<>::object_map_name(ictx->id, it->first));
     r = ictx->md_ctx.remove(oid);
     if (r < 0 && r != -ENOENT) {
       lderr(cct) << "failed to remove object map " << oid << ": "
@@ -85,7 +90,7 @@ int remove_object_map(ImageCtx *ictx) {
     }
   }
 
-  r = ictx->md_ctx.remove(ObjectMap::object_map_name(ictx->id, CEPH_NOSNAP));
+  r = ictx->md_ctx.remove(ObjectMap<>::object_map_name(ictx->id, CEPH_NOSNAP));
   if (r < 0 && r != -ENOENT) {
     lderr(cct) << "failed to remove object map: " << cpp_strerror(r) << dendl;
     return r;
@@ -107,7 +112,7 @@ int create_object_map(ImageCtx *ictx) {
     snap_ids.push_back(it->first);
   }
 
-  if (!ObjectMap::is_compatible(ictx->layout, max_size)) {
+  if (!ObjectMap<>::is_compatible(ictx->layout, max_size)) {
     lderr(cct) << "image size not compatible with object map" << dendl;
     return -EINVAL;
   }
@@ -115,7 +120,7 @@ int create_object_map(ImageCtx *ictx) {
   for (std::vector<uint64_t>::iterator it = snap_ids.begin();
     it != snap_ids.end(); ++it) {
     librados::ObjectWriteOperation op;
-    std::string oid(ObjectMap::object_map_name(ictx->id, *it));
+    std::string oid(ObjectMap<>::object_map_name(ictx->id, *it));
     uint64_t snap_size = ictx->get_image_size(*it);
     cls_client::object_map_resize(&op, Striper::get_num_objects(ictx->layout, snap_size),
                                   OBJECT_NONEXISTENT);
@@ -337,6 +342,13 @@ int mirror_image_disable_internal(ImageCtx *ictx, bool force,
   if (r < 0) {
     lderr(cct) << "failed to send update notification: " << cpp_strerror(r)
                << dendl;
+  }
+
+  if (!is_primary) {
+    r = Journal<>::promote(ictx);
+    if (r < 0) {
+      lderr(cct) << "failed to promote image: " << cpp_strerror(r) << dendl;
+    }
   }
 
   header_oid = ::journal::Journaler::header_oid(ictx->id);
@@ -1132,7 +1144,7 @@ int mirror_image_disable_internal(ImageCtx *ictx, bool force,
         layout.stripe_count = stripe_count;
       }
 
-      if (!ObjectMap::is_compatible(layout, size)) {
+      if (!ObjectMap<>::is_compatible(layout, size)) {
         lderr(cct) << "image size not compatible with object map" << dendl;
         goto err_remove_header;
       }
@@ -1140,7 +1152,7 @@ int mirror_image_disable_internal(ImageCtx *ictx, bool force,
       librados::ObjectWriteOperation op;
       cls_client::object_map_resize(&op, Striper::get_num_objects(layout, size),
                                     OBJECT_NONEXISTENT);
-      r = io_ctx.operate(ObjectMap::object_map_name(id, CEPH_NOSNAP), &op);
+      r = io_ctx.operate(ObjectMap<>::object_map_name(id, CEPH_NOSNAP), &op);
       if (r < 0) {
         lderr(cct) << "error creating initial object map: "
                    << cpp_strerror(r) << dendl;
@@ -1197,7 +1209,7 @@ int mirror_image_disable_internal(ImageCtx *ictx, bool force,
 
   err_remove_object_map:
     if ((features & RBD_FEATURE_OBJECT_MAP) != 0) {
-      remove_r = ObjectMap::remove(io_ctx, id);
+      remove_r = ObjectMap<>::remove(io_ctx, id);
       if (remove_r < 0) {
         lderr(cct) << "error cleaning up object map after creation failed: "
                    << cpp_strerror(remove_r) << dendl;
@@ -1410,7 +1422,7 @@ int mirror_image_disable_internal(ImageCtx *ictx, bool force,
 
     // make sure parent snapshot exists
     ImageCtx *p_imctx = new ImageCtx(p_name, "", p_snap_name, p_ioctx, true);
-    int r = p_imctx->state->open();
+    int r = p_imctx->state->open(false);
     if (r < 0) {
       lderr(cct) << "error opening parent image: "
 		 << cpp_strerror(-r) << dendl;
@@ -1546,7 +1558,7 @@ int mirror_image_disable_internal(ImageCtx *ictx, bool force,
     }
 
     c_imctx = new ImageCtx(c_name, "", NULL, c_ioctx, false);
-    r = c_imctx->state->open();
+    r = c_imctx->state->open(false);
     if (r < 0) {
       lderr(cct) << "Error opening new image: " << cpp_strerror(r) << dendl;
       delete c_imctx;
@@ -1619,7 +1631,7 @@ int mirror_image_disable_internal(ImageCtx *ictx, bool force,
 		   << dstname << dendl;
 
     ImageCtx *ictx = new ImageCtx(srcname, "", "", io_ctx, false);
-    int r = ictx->state->open();
+    int r = ictx->state->open(false);
     if (r < 0) {
       lderr(ictx->cct) << "error opening source image: " << cpp_strerror(r)
 		       << dendl;
@@ -1807,7 +1819,8 @@ int mirror_image_disable_internal(ImageCtx *ictx, bool force,
 
         if ((features & RBD_FEATURE_OBJECT_MAP) != 0) {
           if ((new_features & RBD_FEATURE_EXCLUSIVE_LOCK) == 0) {
-            lderr(cct) << "cannot enable object map" << dendl;
+            lderr(cct) << "cannot enable object-map. exclusive-lock must be "
+                           "enabled before enabling object-map." << dendl;
             return -EINVAL;
           }
           enable_flags |= RBD_FLAG_OBJECT_MAP_INVALID;
@@ -1815,7 +1828,8 @@ int mirror_image_disable_internal(ImageCtx *ictx, bool force,
         }
         if ((features & RBD_FEATURE_FAST_DIFF) != 0) {
           if ((new_features & RBD_FEATURE_OBJECT_MAP) == 0) {
-            lderr(cct) << "cannot enable fast diff" << dendl;
+            lderr(cct) << "cannot enable fast-diff. object-map must be "
+                           "enabled before enabling fast-diff." << dendl;
             return -EINVAL;
           }
           enable_flags |= RBD_FLAG_FAST_DIFF_INVALID;
@@ -1823,7 +1837,8 @@ int mirror_image_disable_internal(ImageCtx *ictx, bool force,
         }
         if ((features & RBD_FEATURE_JOURNALING) != 0) {
           if ((new_features & RBD_FEATURE_EXCLUSIVE_LOCK) == 0) {
-            lderr(cct) << "cannot enable journaling" << dendl;
+            lderr(cct) << "cannot enable journaling. exclusive-lock must be "
+                           "enabled before enabling journaling." << dendl;
             return -EINVAL;
           }
           features_mask |= RBD_FEATURE_EXCLUSIVE_LOCK;
@@ -1850,7 +1865,9 @@ int mirror_image_disable_internal(ImageCtx *ictx, bool force,
         if ((features & RBD_FEATURE_EXCLUSIVE_LOCK) != 0) {
           if ((new_features & RBD_FEATURE_OBJECT_MAP) != 0 ||
               (new_features & RBD_FEATURE_JOURNALING) != 0) {
-            lderr(cct) << "cannot disable exclusive lock" << dendl;
+            lderr(cct) << "cannot disable exclusive-lock. object-map "
+                          "or journaling must be disabled before "
+                          "disabling exclusive-lock." << dendl;
             return -EINVAL;
           }
           features_mask |= (RBD_FEATURE_OBJECT_MAP |
@@ -1858,7 +1875,8 @@ int mirror_image_disable_internal(ImageCtx *ictx, bool force,
         }
         if ((features & RBD_FEATURE_OBJECT_MAP) != 0) {
           if ((new_features & RBD_FEATURE_FAST_DIFF) != 0) {
-            lderr(cct) << "cannot disable object map" << dendl;
+            lderr(cct) << "cannot disable object-map. fast-diff must be "
+                          "disabled before disabling object-map." << dendl;
             return -EINVAL;
           }
 
@@ -1953,7 +1971,7 @@ int mirror_image_disable_internal(ImageCtx *ictx, bool force,
       if (enable_mirroring) {
         ImageCtx *img_ctx = new ImageCtx("", ictx->id, nullptr,
             ictx->md_ctx, false);
-        r = img_ctx->state->open();
+        r = img_ctx->state->open(false);
         if (r < 0) {
           lderr(cct) << "error opening image: " << cpp_strerror(r) << dendl;
           delete img_ctx;
@@ -2087,6 +2105,155 @@ int mirror_image_disable_internal(ImageCtx *ictx, bool force,
     return 0;
   }
 
+  int lock_acquire(ImageCtx *ictx, rbd_lock_mode_t lock_mode)
+  {
+    CephContext *cct = ictx->cct;
+    ldout(cct, 20) << __func__ << ": ictx=" << ictx << ", "
+                   << "lock_mode=" << lock_mode << dendl;
+
+    if (lock_mode != RBD_LOCK_MODE_EXCLUSIVE) {
+      return -EOPNOTSUPP;
+    }
+
+    C_SaferCond lock_ctx;
+    {
+      RWLock::WLocker l(ictx->owner_lock);
+
+      if (ictx->exclusive_lock == nullptr) {
+	lderr(cct) << "exclusive-lock feature is not enabled" << dendl;
+	return -EINVAL;
+      }
+
+      if (ictx->get_exclusive_lock_policy()->may_auto_request_lock()) {
+	ictx->set_exclusive_lock_policy(
+	  new exclusive_lock::StandardPolicy(ictx));
+      }
+
+      if (ictx->exclusive_lock->is_lock_owner()) {
+	return 0;
+      }
+
+      ictx->exclusive_lock->request_lock(&lock_ctx);
+    }
+
+    int r = lock_ctx.wait();
+    if (r < 0) {
+      lderr(cct) << "failed to request exclusive lock: " << cpp_strerror(r)
+		 << dendl;
+      return r;
+    }
+
+    RWLock::RLocker l(ictx->owner_lock);
+
+    if (ictx->exclusive_lock == nullptr ||
+	!ictx->exclusive_lock->is_lock_owner()) {
+      lderr(cct) << "failed to acquire exclusive lock" << dendl;
+      return -EROFS;
+    }
+
+    return 0;
+  }
+
+  int lock_release(ImageCtx *ictx)
+  {
+    CephContext *cct = ictx->cct;
+    ldout(cct, 20) << __func__ << ": ictx=" << ictx << dendl;
+
+    C_SaferCond lock_ctx;
+    {
+      RWLock::WLocker l(ictx->owner_lock);
+
+      if (ictx->exclusive_lock == nullptr ||
+	  !ictx->exclusive_lock->is_lock_owner()) {
+	lderr(cct) << "not exclusive lock owner" << dendl;
+	return -EINVAL;
+      }
+
+      ictx->exclusive_lock->release_lock(&lock_ctx);
+    }
+
+    int r = lock_ctx.wait();
+    if (r < 0) {
+      lderr(cct) << "failed to release exclusive lock: " << cpp_strerror(r)
+		 << dendl;
+      return r;
+    }
+    return 0;
+  }
+
+  int lock_get_owners(ImageCtx *ictx, rbd_lock_mode_t *lock_mode,
+                      std::list<std::string> *lock_owners)
+  {
+    CephContext *cct = ictx->cct;
+    ldout(cct, 20) << __func__ << ": ictx=" << ictx << dendl;
+
+    exclusive_lock::Locker locker;
+    C_SaferCond get_owner_ctx;
+    auto get_owner_req = exclusive_lock::GetLockerRequest<>::create(
+      *ictx, &locker, &get_owner_ctx);
+    get_owner_req->send();
+
+    int r = get_owner_ctx.wait();
+    if (r == -ENOENT) {
+      return r;
+    } else if (r < 0) {
+      lderr(cct) << "failed to determine current lock owner: "
+                 << cpp_strerror(r) << dendl;
+      return r;
+    }
+
+    *lock_mode = RBD_LOCK_MODE_EXCLUSIVE;
+    lock_owners->clear();
+    lock_owners->emplace_back(locker.address);
+    return 0;
+  }
+
+  int lock_break(ImageCtx *ictx, rbd_lock_mode_t lock_mode,
+                 const std::string &lock_owner)
+  {
+    CephContext *cct = ictx->cct;
+    ldout(cct, 20) << __func__ << ": ictx=" << ictx << ", "
+                   << "lock_mode=" << lock_mode << ", "
+                   << "lock_owner=" << lock_owner << dendl;
+
+    if (lock_mode != RBD_LOCK_MODE_EXCLUSIVE) {
+      return -EOPNOTSUPP;
+    }
+
+    exclusive_lock::Locker locker;
+    C_SaferCond get_owner_ctx;
+    auto get_owner_req = exclusive_lock::GetLockerRequest<>::create(
+      *ictx, &locker, &get_owner_ctx);
+    get_owner_req->send();
+
+    int r = get_owner_ctx.wait();
+    if (r == -ENOENT) {
+      return r;
+    } else if (r < 0) {
+      lderr(cct) << "failed to determine current lock owner: "
+                 << cpp_strerror(r) << dendl;
+      return r;
+    }
+
+    if (locker.address != lock_owner) {
+      return -EBUSY;
+    }
+
+    C_SaferCond break_ctx;
+    auto break_req = exclusive_lock::BreakRequest<>::create(
+      *ictx, locker, ictx->blacklist_on_break_lock, true, &break_ctx);
+    break_req->send();
+
+    r = break_ctx.wait();
+    if (r == -ENOENT) {
+      return r;
+    } else if (r < 0) {
+      lderr(cct) << "failed to break lock: " << cpp_strerror(r) << dendl;
+      return r;
+    }
+    return 0;
+  }
+
   int remove(IoCtx& io_ctx, const std::string &image_name,
              const std::string &image_id, ProgressContext& prog_ctx,
              bool force)
@@ -2101,10 +2268,13 @@ int mirror_image_disable_internal(ImageCtx *ictx, bool force,
     bool unknown_format = true;
     ImageCtx *ictx = new ImageCtx(
       (id.empty() ? name : std::string()), id, nullptr, io_ctx, false);
-    int r = ictx->state->open();
+    int r = ictx->state->open(true);
     if (r < 0) {
       ldout(cct, 2) << "error opening image: " << cpp_strerror(-r) << dendl;
       delete ictx;
+      if (r != -ENOENT) {
+	return r;
+      }
     } else {
       string header_oid = ictx->header_oid;
       old_format = ictx->old_format;
@@ -2123,7 +2293,7 @@ int mirror_image_disable_internal(ImageCtx *ictx, bool force,
             ictx->exclusive_lock->shut_down(&ctx);
             r = ctx.wait();
             if (r < 0) {
-              lderr(cct) << "error shutting down exclusive lock"
+              lderr(cct) << "error shutting down exclusive lock: "
                          << cpp_strerror(r) << dendl;
               ictx->state->close();
               return r;
@@ -2240,7 +2410,7 @@ int mirror_image_disable_internal(ImageCtx *ictx, bool force,
         }
 
         ldout(cct, 10) << "removing object map..." << dendl;
-        r = ObjectMap::remove(io_ctx, id);
+        r = ObjectMap<>::remove(io_ctx, id);
         if (r < 0 && r != -ENOENT) {
           lderr(cct) << "error removing image object map" << dendl;
           return r;
@@ -2368,7 +2538,7 @@ int mirror_image_disable_internal(ImageCtx *ictx, bool force,
 
     ImageCtx *dest = new librbd::ImageCtx(destname, "", NULL,
 					  dest_md_ctx, false);
-    r = dest->state->open();
+    r = dest->state->open(false);
     if (r < 0) {
       delete dest;
       lderr(cct) << "failed to read newly created header" << dendl;
@@ -2817,7 +2987,7 @@ int mirror_image_disable_internal(ImageCtx *ictx, bool force,
 
     RWLock::RLocker owner_locker(ictx->owner_lock);
     RWLock::WLocker md_locker(ictx->md_lock);
-    r = ictx->invalidate_cache();
+    r = ictx->invalidate_cache(false);
     ictx->perfcounter->inc(l_librbd_invalidate_cache);
     return r;
   }
@@ -2859,8 +3029,9 @@ int mirror_image_disable_internal(ImageCtx *ictx, bool force,
     size_t conf_prefix_len = start.size();
 
     if(key.size() > conf_prefix_len && !key.compare(0,conf_prefix_len,start)) {
+      // validate config setting
       string subkey = key.substr(conf_prefix_len, key.size()-conf_prefix_len);
-      int r = cct->_conf->set_val(subkey.c_str(), value);
+      int r = md_config_t().set_val(subkey.c_str(), value);
       if (r < 0)
         return r;
     }
@@ -3432,7 +3603,7 @@ int mirror_image_disable_internal(ImageCtx *ictx, bool force,
         if ((features & RBD_FEATURE_JOURNALING) != 0) {
           ImageCtx *img_ctx = new ImageCtx("", img_pair.second, nullptr,
                                            io_ctx, false);
-          r = img_ctx->state->open();
+          r = img_ctx->state->open(false);
           if (r < 0) {
             lderr(cct) << "error opening image "<< img_pair.first << ": "
                        << cpp_strerror(r) << dendl;
@@ -3479,7 +3650,7 @@ int mirror_image_disable_internal(ImageCtx *ictx, bool force,
           }
         } else {
           ImageCtx *img_ctx = new ImageCtx("", img_id, nullptr, io_ctx, false);
-          r = img_ctx->state->open();
+          r = img_ctx->state->open(false);
           if (r < 0) {
             lderr(cct) << "error opening image id "<< img_id << ": "
                        << cpp_strerror(r) << dendl;

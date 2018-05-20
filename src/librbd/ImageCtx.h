@@ -45,7 +45,7 @@ namespace librbd {
   template <typename> class ImageWatcher;
   template <typename> class Journal;
   class LibrbdAdminSocketHook;
-  class ObjectMap;
+  template <typename> class ObjectMap;
   template <typename> class Operations;
   class LibrbdWriteback;
 
@@ -141,7 +141,7 @@ namespace librbd {
     Operations<ImageCtx> *operations;
 
     ExclusiveLock<ImageCtx> *exclusive_lock;
-    ObjectMap *object_map;
+    ObjectMap<ImageCtx> *object_map;
 
     xlist<operation::ResizeRequest<ImageCtx>*> resize_reqs;
 
@@ -268,9 +268,10 @@ namespace librbd {
     void user_flushed();
     void flush_cache(Context *onfinish);
     void shut_down_cache(Context *on_finish);
-    int invalidate_cache(bool purge_on_error=false);
-    void invalidate_cache(Context *on_finish);
+    int invalidate_cache(bool purge_on_error);
+    void invalidate_cache(bool purge_on_error, Context *on_finish);
     void clear_nonexistence_cache();
+    bool is_cache_empty();
     void register_watch(Context *on_finish);
     uint64_t prune_parent_extents(vector<pair<uint64_t,uint64_t> >& objectx,
 				  uint64_t overlap);
@@ -287,7 +288,7 @@ namespace librbd {
     void apply_metadata(const std::map<std::string, bufferlist> &meta);
 
     ExclusiveLock<ImageCtx> *create_exclusive_lock();
-    ObjectMap *create_object_map(uint64_t snap_id);
+    ObjectMap<ImageCtx> *create_object_map(uint64_t snap_id);
     Journal<ImageCtx> *create_journal();
 
     void clear_pending_completions();
