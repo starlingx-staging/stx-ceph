@@ -1,0 +1,718 @@
+.\" Man page generated from reStructuredText.
+.
+.TH "RBD" "8" "December 05, 2016" "dev" "Ceph"
+.SH NAME
+rbd \- manage rados block device (RBD) images
+.
+.nr rst2man-indent-level 0
+.
+.de1 rstReportMargin
+\\$1 \\n[an-margin]
+level \\n[rst2man-indent-level]
+level margin: \\n[rst2man-indent\\n[rst2man-indent-level]]
+-
+\\n[rst2man-indent0]
+\\n[rst2man-indent1]
+\\n[rst2man-indent2]
+..
+.de1 INDENT
+.\" .rstReportMargin pre:
+. RS \\$1
+. nr rst2man-indent\\n[rst2man-indent-level] \\n[an-margin]
+. nr rst2man-indent-level +1
+.\" .rstReportMargin post:
+..
+.de UNINDENT
+. RE
+.\" indent \\n[an-margin]
+.\" old: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.nr rst2man-indent-level -1
+.\" new: \\n[rst2man-indent\\n[rst2man-indent-level]]
+.in \\n[rst2man-indent\\n[rst2man-indent-level]]u
+..
+.SH SYNOPSIS
+.nf
+\fBrbd\fP [ \-c \fIceph.conf\fP ] [ \-m \fImonaddr\fP ] [\-\-cluster \fIcluster name\fP]
+[ \-p | \-\-pool \fIpool\fP ] [ \fIcommand\fP ... ]
+.fi
+.sp
+.SH DESCRIPTION
+.sp
+\fBrbd\fP is a utility for manipulating rados block device (RBD) images,
+used by the Linux rbd driver and the rbd storage driver for Qemu/KVM.
+RBD images are simple block devices that are striped over objects and
+stored in a RADOS object store. The size of the objects the image is
+striped over must be a power of two.
+.SH OPTIONS
+.INDENT 0.0
+.TP
+.B \-c ceph.conf, \-\-conf ceph.conf
+Use ceph.conf configuration file instead of the default /etc/ceph/ceph.conf to
+determine monitor addresses during startup.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-m monaddress[:port]
+Connect to specified monitor (instead of looking through ceph.conf).
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-cluster cluster name
+Use different cluster name as compared to default cluster name \fIceph\fP\&.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-p pool\-name, \-\-pool pool\-name
+Interact with the given pool. Required by most commands.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-no\-progress
+Do not output progress information (goes to standard error by
+default for some commands).
+.UNINDENT
+.SH PARAMETERS
+.INDENT 0.0
+.TP
+.B \-\-image\-format format\-id
+Specifies which object layout to use. The default is 2.
+.INDENT 7.0
+.IP \(bu 2
+format 1 \- (deprecated) Use the original format for a new rbd image. This
+format is understood by all versions of librbd and the kernel rbd module,
+but does not support newer features like cloning.
+.IP \(bu 2
+format 2 \- Use the second rbd format, which is supported by
+librbd and kernel since version 3.11 (except for striping). This adds
+support for cloning and is more easily extensible to allow more
+features in the future.
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-s size\-in\-M/G/T, \-\-size size\-in\-M/G/T
+Specifies the size of the new rbd image or the new size of the existing rbd
+image in M/G/T.  If no suffix is given, unit M is assumed.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-object\-size size\-in\-B/K/M
+Specifies the object size in B/K/M.  Object size will be rounded up the
+nearest power of two; if no suffix is given, unit B is assumed.  The default
+object size is 4M, smallest is 4K and maximum is 32M.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-stripe\-unit size\-in\-B/K/M
+Specifies the stripe unit size in B/K/M.  If no suffix is given, unit B is
+assumed.  See striping section (below) for more details.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-stripe\-count num
+Specifies the number of objects to stripe over before looping back
+to the first object.  See striping section (below) for more details.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-snap snap
+Specifies the snapshot name for the specific operation.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-id username
+Specifies the username (without the \fBclient.\fP prefix) to use with the map command.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-keyring filename
+Specifies a keyring file containing a secret for the specified user
+to use with the map command.  If not specified, the default keyring
+locations will be searched.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-keyfile filename
+Specifies a file containing the secret key of \fB\-\-id user\fP to use with the map command.
+This option is overridden by \fB\-\-keyring\fP if the latter is also specified.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-shared lock\-tag
+Option for \fIlock add\fP that allows multiple clients to lock the
+same image if they use the same tag. The tag is an arbitrary
+string. This is useful for situations where an image must
+be open from more than one client at once, like during
+live migration of a virtual machine, or for use underneath
+a clustered filesystem.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-format format
+Specifies output formatting (default: plain, json, xml)
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-pretty\-format
+Make json or xml formatted output more human\-readable.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-o krbd\-options, \-\-options krbd\-options
+Specifies which options to use when mapping or unmapping an image via the
+rbd kernel driver.  krbd\-options is a comma\-separated list of options
+(similar to mount(8) mount options).  See kernel rbd (krbd) options section
+below for more details.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-read\-only
+Map the image read\-only.  Equivalent to \-o ro.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-image\-feature feature\-name
+Specifies which RBD format 2 feature should be enabled when creating
+an image. Multiple features can be enabled by repeating this option
+multiple times. The following features are supported:
+.INDENT 7.0
+.IP \(bu 2
+layering: layering support
+.IP \(bu 2
+striping: striping v2 support
+.IP \(bu 2
+exclusive\-lock: exclusive locking support
+.IP \(bu 2
+object\-map: object map support (requires exclusive\-lock)
+.IP \(bu 2
+fast\-diff: fast diff calculations (requires object\-map)
+.IP \(bu 2
+deep\-flatten: snapshot flatten support
+.IP \(bu 2
+journaling: journaled IO support (requires exclusive\-lock)
+.UNINDENT
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-image\-shared
+Specifies that the image will be used concurrently by multiple clients.
+This will disable features that are dependent upon exclusive ownership
+of the image.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B \-\-whole\-object
+Specifies that the diff should be limited to the extents of a full object
+instead of showing intra\-object deltas. When the object map feature is
+enabled on an image, limiting the diff to the object extents will
+dramatically improve performance since the differences can be computed
+by examining the in\-memory object map instead of querying RADOS for each
+object within the image.
+.UNINDENT
+.SH COMMANDS
+.INDENT 0.0
+.TP
+.B \fBls\fP [\-l | \-\-long] [\fIpool\-name\fP]
+Will list all rbd images listed in the rbd_directory object.  With
+\-l, also show snapshots, and use longer\-format output including
+size, parent (if clone), format, etc.
+.TP
+.B \fBdu\fP [\-p | \-\-pool \fIpool\-name\fP] [\fIimage\-spec\fP | \fIsnap\-spec\fP]
+Will calculate the provisioned and actual disk usage of all images and
+associated snapshots within the specified pool.  It can also be used against
+individual images and snapshots.
+.sp
+If the RBD fast\-diff feature isn\(aqt enabled on images, this operation will
+require querying the OSDs for every potential object within the image.
+.TP
+.B \fBinfo\fP \fIimage\-spec\fP | \fIsnap\-spec\fP
+Will dump information (such as size and object size) about a specific rbd image.
+If image is a clone, information about its parent is also displayed.
+If a snapshot is specified, whether it is protected is shown as well.
+.TP
+.B \fBcreate\fP (\-s | \-\-size \fIsize\-in\-M/G/T\fP) [\-\-image\-format \fIformat\-id\fP] [\-\-object\-size \fIsize\-in\-B/K/M\fP] [\-\-stripe\-unit \fIsize\-in\-B/K/M\fP \-\-stripe\-count \fInum\fP] [\-\-image\-feature \fIfeature\-name\fP]... [\-\-image\-shared] \fIimage\-spec\fP
+Will create a new rbd image. You must also specify the size via \-\-size.  The
+\-\-stripe\-unit and \-\-stripe\-count arguments are optional, but must be used together.
+.TP
+.B \fBclone\fP [\-\-object\-size \fIsize\-in\-B/K/M\fP] [\-\-stripe\-unit \fIsize\-in\-B/K/M\fP \-\-stripe\-count \fInum\fP] [\-\-image\-feature \fIfeature\-name\fP] [\-\-image\-shared] \fIparent\-snap\-spec\fP \fIchild\-image\-spec\fP
+Will create a clone (copy\-on\-write child) of the parent snapshot.
+Object size will be identical to that of the parent image unless
+specified. Size will be the same as the parent snapshot. The \-\-stripe\-unit
+and \-\-stripe\-count arguments are optional, but must be used together.
+.sp
+The parent snapshot must be protected (see \fIrbd snap protect\fP).
+This requires image format 2.
+.TP
+.B \fBflatten\fP \fIimage\-spec\fP
+If image is a clone, copy all shared blocks from the parent snapshot and
+make the child independent of the parent, severing the link between
+parent snap and child.  The parent snapshot can be unprotected and
+deleted if it has no further dependent clones.
+.sp
+This requires image format 2.
+.TP
+.B \fBchildren\fP \fIsnap\-spec\fP
+List the clones of the image at the given snapshot. This checks
+every pool, and outputs the resulting poolname/imagename.
+.sp
+This requires image format 2.
+.TP
+.B \fBresize\fP (\-s | \-\-size \fIsize\-in\-M/G/T\fP) [\-\-allow\-shrink] \fIimage\-spec\fP
+Resizes rbd image. The size parameter also needs to be specified.
+The \-\-allow\-shrink option lets the size be reduced.
+.TP
+.B \fBrm\fP \fIimage\-spec\fP
+Deletes an rbd image (including all data blocks). If the image has
+snapshots, this fails and nothing is deleted.
+.TP
+.B \fBexport\fP (\fIimage\-spec\fP | \fIsnap\-spec\fP) [\fIdest\-path\fP]
+Exports image to dest path (use \- for stdout).
+.TP
+.B \fBimport\fP [\-\-image\-format \fIformat\-id\fP] [\-\-object\-size \fIsize\-in\-B/K/M\fP] [\-\-stripe\-unit \fIsize\-in\-B/K/M\fP \-\-stripe\-count \fInum\fP] [\-\-image\-feature \fIfeature\-name\fP]... [\-\-image\-shared] \fIsrc\-path\fP [\fIimage\-spec\fP]
+Creates a new image and imports its data from path (use \- for
+stdin).  The import operation will try to create sparse rbd images
+if possible.  For import from stdin, the sparsification unit is
+the data block size of the destination image (object size).
+.sp
+The \-\-stripe\-unit and \-\-stripe\-count arguments are optional, but must be
+used together.
+.TP
+.B \fBexport\-diff\fP [\-\-from\-snap \fIsnap\-name\fP] [\-\-whole\-object] (\fIimage\-spec\fP | \fIsnap\-spec\fP) \fIdest\-path\fP
+Exports an incremental diff for an image to dest path (use \- for stdout).  If
+an initial snapshot is specified, only changes since that snapshot are included; otherwise,
+any regions of the image that contain data are included.  The end snapshot is specified
+using the standard \-\-snap option or @snap syntax (see below).  The image diff format includes
+metadata about image size changes, and the start and end snapshots.  It efficiently represents
+discarded or \(aqzero\(aq regions of the image.
+.TP
+.B \fBmerge\-diff\fP \fIfirst\-diff\-path\fP \fIsecond\-diff\-path\fP \fImerged\-diff\-path\fP
+Merge two continuous incremental diffs of an image into one single diff. The
+first diff\(aqs end snapshot must be equal with the second diff\(aqs start snapshot.
+The first diff could be \- for stdin, and merged diff could be \- for stdout, which
+enables multiple diff files to be merged using something like
+\(aqrbd merge\-diff first second \- | rbd merge\-diff \- third result\(aq. Note this command
+currently only support the source incremental diff with stripe_count == 1
+.TP
+.B \fBimport\-diff\fP \fIsrc\-path\fP \fIimage\-spec\fP
+Imports an incremental diff of an image and applies it to the current image.  If the diff
+was generated relative to a start snapshot, we verify that snapshot already exists before
+continuing.  If there was an end snapshot we verify it does not already exist before
+applying the changes, and create the snapshot when we are done.
+.TP
+.B \fBdiff\fP [\-\-from\-snap \fIsnap\-name\fP] [\-\-whole\-object] \fIimage\-spec\fP | \fIsnap\-spec\fP
+Dump a list of byte extents in the image that have changed since the specified start
+snapshot, or since the image was created.  Each output line includes the starting offset
+(in bytes), the length of the region (in bytes), and either \(aqzero\(aq or \(aqdata\(aq to indicate
+whether the region is known to be zeros or may contain other data.
+.TP
+.B \fBcp\fP (\fIsrc\-image\-spec\fP | \fIsrc\-snap\-spec\fP) \fIdest\-image\-spec\fP
+Copies the content of a src\-image into the newly created dest\-image.
+dest\-image will have the same size, object size, and image format as src\-image.
+.TP
+.B \fBmv\fP \fIsrc\-image\-spec\fP \fIdest\-image\-spec\fP
+Renames an image.  Note: rename across pools is not supported.
+.TP
+.B \fBimage\-meta list\fP \fIimage\-spec\fP
+Show metadata held on the image. The first column is the key
+and the second column is the value.
+.TP
+.B \fBimage\-meta get\fP \fIimage\-spec\fP \fIkey\fP
+Get metadata value with the key.
+.TP
+.B \fBimage\-meta set\fP \fIimage\-spec\fP \fIkey\fP \fIvalue\fP
+Set metadata key with the value. They will displayed in \fIimage\-meta list\fP\&.
+.TP
+.B \fBimage\-meta remove\fP \fIimage\-spec\fP \fIkey\fP
+Remove metadata key with the value.
+.TP
+.B \fBobject\-map rebuild\fP \fIimage\-spec\fP | \fIsnap\-spec\fP
+Rebuilds an invalid object map for the specified image. An image snapshot can be
+specified to rebuild an invalid object map for a snapshot.
+.TP
+.B \fBsnap ls\fP \fIimage\-spec\fP
+Dumps the list of snapshots inside a specific image.
+.TP
+.B \fBsnap create\fP \fIsnap\-spec\fP
+Creates a new snapshot. Requires the snapshot name parameter specified.
+.TP
+.B \fBsnap rollback\fP \fIsnap\-spec\fP
+Rollback image content to snapshot. This will iterate through the entire blocks
+array and update the data head content to the snapshotted version.
+.TP
+.B \fBsnap rm\fP \fIsnap\-spec\fP
+Removes the specified snapshot.
+.TP
+.B \fBsnap purge\fP \fIimage\-spec\fP
+Removes all snapshots from an image.
+.TP
+.B \fBsnap protect\fP \fIsnap\-spec\fP
+Protect a snapshot from deletion, so that clones can be made of it
+(see \fIrbd clone\fP).  Snapshots must be protected before clones are made;
+protection implies that there exist dependent cloned children that
+refer to this snapshot.  \fIrbd clone\fP will fail on a nonprotected
+snapshot.
+.sp
+This requires image format 2.
+.TP
+.B \fBsnap unprotect\fP \fIsnap\-spec\fP
+Unprotect a snapshot from deletion (undo \fIsnap protect\fP).  If cloned
+children remain, \fIsnap unprotect\fP fails.  (Note that clones may exist
+in different pools than the parent snapshot.)
+.sp
+This requires image format 2.
+.TP
+.B \fBmap\fP [\-o | \-\-options \fIkrbd\-options\fP ] [\-\-read\-only] \fIimage\-spec\fP | \fIsnap\-spec\fP
+Maps the specified image to a block device via the rbd kernel module.
+.TP
+.B \fBunmap\fP [\-o | \-\-options \fIkrbd\-options\fP ] \fIimage\-spec\fP | \fIsnap\-spec\fP | \fIdevice\-path\fP
+Unmaps the block device that was mapped via the rbd kernel module.
+.TP
+.B \fBshowmapped\fP
+Show the rbd images that are mapped via the rbd kernel module.
+.TP
+.B \fBnbd map\fP [\-\-device \fIdevice\-path\fP] [\-\-read\-only] \fIimage\-spec\fP | \fIsnap\-spec\fP
+Maps the specified image to a block device via the rbd\-nbd tool.
+.TP
+.B \fBnbd unmap\fP \fIdevice\-path\fP
+Unmaps the block device that was mapped via the rbd\-nbd tool.
+.TP
+.B \fBnbd list\fP
+Show the list of used nbd devices via the rbd\-nbd tool.
+.TP
+.B \fBstatus\fP \fIimage\-spec\fP
+Show the status of the image, including which clients have it open.
+.TP
+.B \fBfeature disable\fP \fIimage\-spec\fP \fIfeature\-name\fP\&...
+Disables the specified feature on the specified image. Multiple features can
+be specified.
+.TP
+.B \fBfeature enable\fP \fIimage\-spec\fP \fIfeature\-name\fP\&...
+Enables the specified feature on the specified image. Multiple features can
+be specified.
+.TP
+.B \fBlock list\fP \fIimage\-spec\fP
+Show locks held on the image. The first column is the locker
+to use with the \fIlock remove\fP command.
+.TP
+.B \fBlock add\fP [\-\-shared \fIlock\-tag\fP] \fIimage\-spec\fP \fIlock\-id\fP
+Lock an image. The lock\-id is an arbitrary name for the user\(aqs
+convenience. By default, this is an exclusive lock, meaning it
+will fail if the image is already locked. The \-\-shared option
+changes this behavior. Note that locking does not affect
+any operation other than adding a lock. It does not
+protect an image from being deleted.
+.TP
+.B \fBlock remove\fP \fIimage\-spec\fP \fIlock\-id\fP \fIlocker\fP
+Release a lock on an image. The lock id and locker are
+as output by lock ls.
+.TP
+.B \fBbench\-write\fP [\-\-io\-size \fIsize\-in\-B/K/M/G/T\fP] [\-\-io\-threads \fInum\-ios\-in\-flight\fP] [\-\-io\-total \fIsize\-in\-B/K/M/G/T\fP] [\-\-io\-pattern seq | rand] \fIimage\-spec\fP
+Generate a series of writes to the image and measure the write throughput and
+latency.  If no suffix is given, unit B is assumed for both \-\-io\-size and
+\-\-io\-total.  Defaults are: \-\-io\-size 4096, \-\-io\-threads 16, \-\-io\-total 1G,
+\-\-io\-pattern seq.
+.UNINDENT
+.SH IMAGE AND SNAP SPECS
+.nf
+\fIimage\-spec\fP is [\fIpool\-name\fP]/\fIimage\-name\fP
+\fIsnap\-spec\fP  is [\fIpool\-name\fP]/\fIimage\-name\fP@\fIsnap\-name\fP
+.fi
+.sp
+.sp
+The default for \fIpool\-name\fP is "rbd".  If an image name contains a slash
+character (\(aq/\(aq), \fIpool\-name\fP is required.
+.sp
+You may specify each name individually, using \-\-pool, \-\-image and \-\-snap
+options, but this is discouraged in favor of the above spec syntax.
+.SH STRIPING
+.sp
+RBD images are striped over many objects, which are then stored by the
+Ceph distributed object store (RADOS).  As a result, read and write
+requests for the image are distributed across many nodes in the
+cluster, generally preventing any single node from becoming a
+bottleneck when individual images get large or busy.
+.sp
+The striping is controlled by three parameters:
+.INDENT 0.0
+.TP
+.B object\-size
+The size of objects we stripe over is a power of two. It will be rounded up the nearest power of two.
+The default object size is 4 MB, smallest is 4K and maximum is 32M.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B stripe_unit
+Each [\fIstripe_unit\fP] contiguous bytes are stored adjacently in the same object, before we move on
+to the next object.
+.UNINDENT
+.INDENT 0.0
+.TP
+.B stripe_count
+After we write [\fIstripe_unit\fP] bytes to [\fIstripe_count\fP] objects, we loop back to the initial object
+and write another stripe, until the object reaches its maximum size.  At that point,
+we move on to the next [\fIstripe_count\fP] objects.
+.UNINDENT
+.sp
+By default, [\fIstripe_unit\fP] is the same as the object size and [\fIstripe_count\fP] is 1.  Specifying a different
+[\fIstripe_unit\fP] requires that the STRIPINGV2 feature be supported (added in Ceph v0.53) and format 2 images be
+used.
+.SH KERNEL RBD (KRBD) OPTIONS
+.sp
+Most of these options are useful mainly for debugging and benchmarking.  The
+default values are set in the kernel and may therefore depend on the version of
+the running kernel.
+.sp
+Per client instance \fIrbd map\fP options:
+.INDENT 0.0
+.IP \(bu 2
+fsid=aaaaaaaa\-bbbb\-cccc\-dddd\-eeeeeeeeeeee \- FSID that should be assumed by
+the client.
+.IP \(bu 2
+ip=a.b.c.d[:p] \- IP and, optionally, port the client should use.
+.IP \(bu 2
+share \- Enable sharing of client instances with other mappings (default).
+.IP \(bu 2
+noshare \- Disable sharing of client instances with other mappings.
+.IP \(bu 2
+crc \- Enable CRC32C checksumming for data writes (default).
+.IP \(bu 2
+nocrc \- Disable CRC32C checksumming for data writes.
+.IP \(bu 2
+cephx_require_signatures \- Require cephx message signing (since 3.19,
+default).
+.IP \(bu 2
+nocephx_require_signatures \- Don\(aqt require cephx message signing (since
+3.19).
+.IP \(bu 2
+tcp_nodelay \- Disable Nagle\(aqs algorithm on client sockets (since 4.0,
+default).
+.IP \(bu 2
+notcp_nodelay \- Enable Nagle\(aqs algorithm on client sockets (since 4.0).
+.IP \(bu 2
+cephx_sign_messages \- Enable message signing (since 4.4, default).
+.IP \(bu 2
+nocephx_sign_messages \- Disable message signing (since 4.4).
+.IP \(bu 2
+mount_timeout=x \- A timeout on various steps in \fIrbd map\fP and \fIrbd unmap\fP
+sequences (default is 60 seconds).  In particular, since 4.2 this can be used
+to ensure that \fIrbd unmap\fP eventually times out when there is no network
+connection to a cluster.
+.IP \(bu 2
+osdkeepalive=x \- OSD keepalive timeout (default is 5 seconds).
+.IP \(bu 2
+osd_idle_ttl=x \- OSD idle TTL (default is 60 seconds).
+.UNINDENT
+.sp
+Per mapping (block device) \fIrbd map\fP options:
+.INDENT 0.0
+.IP \(bu 2
+rw \- Map the image read\-write (default).
+.IP \(bu 2
+ro \- Map the image read\-only.  Equivalent to \-\-read\-only.
+.IP \(bu 2
+queue_depth=x \- queue depth (since 4.2, default is 128 requests).
+.IP \(bu 2
+lock_on_read \- Acquire exclusive lock on reads, in addition to writes and
+discards (since 4.9).
+.UNINDENT
+.sp
+\fIrbd unmap\fP options:
+.INDENT 0.0
+.IP \(bu 2
+force \- Force the unmapping of a block device that is open (since 4.9).  The
+driver will wait for running requests to complete and then unmap; requests
+sent to the driver after initiating the unmap will be failed.
+.UNINDENT
+.SH EXAMPLES
+.sp
+To create a new rbd image that is 100 GB:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rbd create mypool/myimage \-\-size 102400
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+To use a non\-default object size (8 MB):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rbd create mypool/myimage \-\-size 102400 \-\-object\-size 8M
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+To delete an rbd image (be careful!):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rbd rm mypool/myimage
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+To create a new snapshot:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rbd snap create mypool/myimage@mysnap
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+To create a copy\-on\-write clone of a protected snapshot:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rbd clone mypool/myimage@mysnap otherpool/cloneimage
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+To see which clones of a snapshot exist:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rbd children mypool/myimage@mysnap
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+To delete a snapshot:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rbd snap rm mypool/myimage@mysnap
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+To map an image via the kernel with cephx enabled:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rbd map mypool/myimage \-\-id admin \-\-keyfile secretfile
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+To map an image via the kernel with different cluster name other than default \fIceph\fP\&.
+.INDENT 0.0
+.INDENT 3.5
+rbd map mypool/myimage \-\-cluster \fIcluster name\fP
+.UNINDENT
+.UNINDENT
+.sp
+To unmap an image:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rbd unmap /dev/rbd0
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+To create an image and a clone from it:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rbd import \-\-image\-format 2 image mypool/parent
+rbd snap create mypool/parent@snap
+rbd snap protect mypool/parent@snap
+rbd clone mypool/parent@snap otherpool/child
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+To create an image with a smaller stripe_unit (to better distribute small writes in some workloads):
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rbd create mypool/myimage \-\-size 102400 \-\-stripe\-unit 65536B \-\-stripe\-count 16
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+To change an image from one image format to another, export it and then
+import it as the desired image format:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rbd export mypool/myimage@snap /tmp/img
+rbd import \-\-image\-format 2 /tmp/img mypool/myimage2
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+To lock an image for exclusive use:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rbd lock add mypool/myimage mylockid
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.sp
+To release a lock:
+.INDENT 0.0
+.INDENT 3.5
+.sp
+.nf
+.ft C
+rbd lock remove mypool/myimage mylockid client.2485
+.ft P
+.fi
+.UNINDENT
+.UNINDENT
+.SH AVAILABILITY
+.sp
+\fBrbd\fP is part of Ceph, a massively scalable, open\-source, distributed storage system. Please refer to
+the Ceph documentation at \fI\%http://ceph.com/docs\fP for more information.
+.SH SEE ALSO
+.sp
+\fBceph\fP(8),
+\fBrados\fP(8)
+.SH COPYRIGHT
+2010-2014, Inktank Storage, Inc. and contributors. Licensed under Creative Commons BY-SA
+.\" Generated by docutils manpage writer.
+.
