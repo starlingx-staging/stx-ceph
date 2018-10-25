@@ -36,7 +36,7 @@ download_boost() {
             exit
         fi
         url=$url_base/$boost_fname
-        wget -c --no-verbose -O $boost_fname $url
+        #wget -c --no-verbose -O $boost_fname $url
         if [ $? != 0 -o ! -e $boost_fname ]; then
             echo "Download of $url failed"
         elif [ $(sha256sum $boost_fname | awk '{print $1}') != $boost_sha256 ]; then
@@ -57,8 +57,8 @@ download_boost() {
         --exclude="$boost_version_underscore/tools/auto_index" \
         --exclude='doc' --exclude='more' --exclude='status'
     mv src/boost_${boost_version_underscore} src/boost
-    tar cf ${outfile}.boost.tar ${outfile}/src/boost
-    rm -rf src/boost
+    #tar cf ${outfile}.boost.tar ${outfile}/src/boost
+    #rm -rf src/boost
 }
 
 _python_autoselect() {
@@ -105,7 +105,7 @@ bin/git-archive-all.sh --prefix ceph-$version/ \
 # populate files with version strings
 echo "including src/.git_version, ceph.spec"
 
-(git rev-parse HEAD ; git describe) 2> /dev/null > src/.git_version
+(git rev-parse HEAD ; echo "v${version}") 2> /dev/null > src/.git_version
 
 # if the version has '-' in it, it has a 'release' part,
 # like vX.Y.Z-N-g<shortsha1>.  If it doesn't, it's just
@@ -120,14 +120,14 @@ else
 	rpm_release=0
 fi
 
-for spec in ceph.spec.in alpine/APKBUILD.in; do
+for spec in alpine/APKBUILD.in; do
     cat $spec |
         sed "s/@VERSION@/$rpm_version/g" |
         sed "s/@RPM_RELEASE@/$rpm_release/g" |
         sed "s/@TARBALL_BASENAME@/ceph-$version/g" > `echo $spec | sed 's/.in$//'`
 done
 ln -s . $outfile
-tar cvf $outfile.version.tar $outfile/src/.git_version $outfile/ceph.spec $outfile/alpine/APKBUILD
+tar cvf $outfile.version.tar $outfile/src/.git_version $outfile/alpine/APKBUILD
 # NOTE: If you change this version number make sure the package is available
 # at the three URLs referenced below (may involve uploading to download.ceph.com)
 boost_version=1.67.0
@@ -135,17 +135,17 @@ download_boost $boost_version 2684c972994ee57fc5632e03bf044746f6eb45d4920c343937
                https://dl.bintray.com/boostorg/release/$boost_version/source \
                https://downloads.sourceforge.net/project/boost/boost/$boost_version \
                https://download.ceph.com/qa
-build_dashboard_frontend
-tar --concatenate -f $outfile.all.tar $outfile.version.tar
-tar --concatenate -f $outfile.all.tar $outfile.boost.tar
-tar --concatenate -f $outfile.all.tar $outfile.tar
-tar --concatenate -f $outfile.all.tar dashboard_frontend.tar
-mv $outfile.all.tar $outfile.tar
+#build_dashboard_frontend
+#tar --concatenate -f $outfile.all.tar $outfile.version.tar
+#tar --concatenate -f $outfile.all.tar $outfile.boost.tar
+#tar --concatenate -f $outfile.all.tar $outfile.tar
+#tar --concatenate -f $outfile.all.tar dashboard_frontend.tar
+#mv $outfile.all.tar $outfile.tar
 rm $outfile
 rm -f $outfile.version.tar
 rm -f $outfile.boost.tar
 
-echo "compressing..."
-bzip2 -9 $outfile.tar
+#echo "compressing..."
+#bzip2 -9 $outfile.tar
 
-echo "done."
+echo "ceph : make-disk done."
