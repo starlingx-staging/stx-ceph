@@ -36,7 +36,7 @@ download_boost() {
             exit
         fi
         url=$url_base/$boost_fname
-        #wget -c --no-verbose -O $boost_fname $url
+        wget -c --no-verbose -O $boost_fname $url
         if [ $? != 0 -o ! -e $boost_fname ]; then
             echo "Download of $url failed"
         elif [ $(sha256sum $boost_fname | awk '{print $1}') != $boost_sha256 ]; then
@@ -148,4 +148,4 @@ rm -f $outfile.boost.tar
 #echo "compressing..."
 #bzip2 -9 $outfile.tar
 
-echo "ceph : make-disk done."
+echo "ceph : make-dist done."
