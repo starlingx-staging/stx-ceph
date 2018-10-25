@@ -15,6 +15,9 @@
 # Please submit bugfixes or comments via http://tracker.ceph.com/
 #
 
+# disbale debug package
+%define debug_package %{nil}
+
 # disable python3
 %bcond_with python3
 %bcond_without ocf
