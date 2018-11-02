@@ -13,7 +13,7 @@
 ### END INIT INFO
 
 # TODO: on FreeBSD/OSX, use equivalent script file
-if [ -e /lib/lsb/init-functions ]; then
+if [ -f /lib/lsb/init-functions ]; then
     . /lib/lsb/init-functions
 fi
 
