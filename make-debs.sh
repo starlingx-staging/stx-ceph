@@ -33,7 +33,7 @@ git clean -dxf
 # c) compares higher than any previous commit
 # d) contains the short hash of the commit
 #
-vers=$(git describe --match "v*" | sed s/^v//)
+vers=`echo 'stx-ceph_v13.2.0' | sed 's/^stx-ceph_v//'`
 ./make-dist $vers
 #
 # rename the tarbal to match debian conventions and extract it
