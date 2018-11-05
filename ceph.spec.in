@@ -1046,7 +1046,7 @@ rm -rf %{buildroot}
 %{_bindir}/ceph-detect-init
 %{_sysconfdir}/ceph/ceph.conf.pmon
 %{_sysconfdir}/ceph/ceph_pmon_wrapper.sh
-%{_sysconfdir}/ceph/ceph.conf
+%config(noreplace) %{_sysconfdir}/ceph/ceph.conf
 %{_sysconfdir}/services.d/*
 %{_libexecdir}/systemd/system-preset/50-ceph.preset
 %{_sbindir}/ceph-create-keys
