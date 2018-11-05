@@ -3197,8 +3197,7 @@ def mkfs(
                 '--monmap', monmap,
                 '--osd-data', path,
                 '--osd-uuid', fsid,
-                '--setuser', get_ceph_user(),
-                '--setgroup', get_ceph_group(),
+                 # don't run as ceph
             ],
         )
     elif osd_type == 'filestore':
@@ -3213,8 +3212,7 @@ def mkfs(
                 '--osd-data', path,
                 '--osd-journal', os.path.join(path, 'journal'),
                 '--osd-uuid', fsid,
-                '--setuser', get_ceph_user(),
-                '--setgroup', get_ceph_group(),
+                 # don't run as ceph
             ],
         )
     else:
