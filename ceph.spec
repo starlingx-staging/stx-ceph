@@ -1168,6 +1168,7 @@ mkdir -p %{buildroot}%{_sysconfdir}/services.d/controller
 mkdir -p %{buildroot}%{_sysconfdir}/services.d/storage
 mkdir -p %{buildroot}%{_initrddir}
 mkdir -p %{buildroot}%{_sysconfdir}/ceph
+mkdir -p %{buildroot}%{_unitdir}
 
 install -m 750 wrs/ceph.sh %{buildroot}%{_sysconfdir}/services.d/controller/
 install -m 750 wrs/ceph.sh %{buildroot}%{_sysconfdir}/services.d/storage/
@@ -1175,7 +1176,10 @@ install -m 750 wrs/ceph-rest-api %{buildroot}%{_initrddir}/
 install -m 750 wrs/ceph.conf.pmon %{buildroot}%{_sysconfdir}/ceph/
 install -m 750 wrs/ceph_pmon_wrapper.sh %{buildroot}%{_sysconfdir}/ceph/
 install -m 755 wrs/ceph.conf %{buildroot}%{_sysconfdir}/ceph/
-install -m 700 wrs/ceph-manage-journal.py %{buildroot}/usr/sbin/ceph-manage-journal
+install -m 700 wrs/ceph-manage-journal.py %{buildroot}%{_sbindir}/ceph-manage-journal
+install -m 644 wrs/ceph.service %{buildroot}%{_unitdir}/ceph.service
+install -m 644 wrs/ceph-rest-api.service %{buildroot}%{_unitdir}/ceph-rest-api.service
+install -m 644 wrs/ceph-radosgw.service %{buildroot}%{_unitdir}/ceph-radosgw.service
 
 %if 0%{?suse_version}
 # create __pycache__ directories and their contents
@@ -1530,6 +1534,9 @@ fi
 %{_mandir}/man8/ceph-mon.8*
 %{_unitdir}/ceph-mon@.service
 %{_unitdir}/ceph-mon.target
+%{_unitdir}/ceph.service
+%{_unitdir}/ceph-rest-api.service
+%{_unitdir}/ceph-radosgw.service
 %attr(750,ceph,ceph) %dir %{_localstatedir}/lib/ceph/mon
 
 %post mon
