@@ -762,7 +762,8 @@ for name in $what; do
 
 	    [ -n "$TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES" ] && tcmalloc="TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES=$TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES"
 
-	    cmd="$files $tcmalloc $wrap $cmd --cluster $cluster ${SET_CEPHUSER_ARGS} $runmode"
+	    # StarlingX: not running as ceph user/group
+	    cmd="$files $tcmalloc $wrap $cmd --cluster $cluster $runmode"
 
 	    if [ $dofsmount -eq 1 ] && [ -n "$fs_devs" ]; then
 		get_conf pre_mount "true" "pre mount command"
