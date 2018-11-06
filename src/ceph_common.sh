@@ -7,6 +7,55 @@ conf=$default_conf
 
 hostname=`hostname -s`
 
+wlog() {
+    # Syntax: "wlog <name> <err_lvl> <log_msg> [print_trace]"
+    # err_lvl should be INFO, WARN, ERROR or DEBUG
+    #  o INFO - state transitions & normal messages
+    #  o WARN - unexpected events (i.e. processes marked as down)
+    #  o ERROR - hang messages and unexpected errors
+    #  o DEBUG - print debug messages
+    if [ -z "$LOG_FILE" ] || [ "$LOG_LEVEL" != "DEBUG" ] && [ "$2" = "DEBUG" ]; then
+        # hide messages
+        return
+    fi
+
+    local head="$(date "+%Y-%m-%d %H:%M:%S.%3N") $0 $1"
+    echo "$head $2: $3" >> $LOG_FILE
+    if [ "$4" = "print_trace" ]; then
+        # Print out the stack trace
+        if [ ${#FUNCNAME[@]} -gt 1 ]; then
+            echo "$head   Call trace:" >> $LOG_FILE
+            for ((i=0;i<${#FUNCNAME[@]}-1;i++)); do
+                echo "$head     $i: ${BASH_SOURCE[$i+1]}:${BASH_LINENO[$i]} ${FUNCNAME[$i]}(...)" >> $LOG_FILE
+            done
+        fi
+    fi
+}
+
+CEPH_FAILURE=""
+execute_ceph_cmd() {
+    # execute a comand and in case it timeouts mark ceph as failed
+    local ret=$1
+    local name=$2
+    local cmd=$3
+    local cmd="timeout $WAIT_FOR_CMD $cmd"
+    set -o pipefail
+    eval "$cmd &>$DATA_PATH/.ceph_cmd_out"
+    errcode=$?
+    set +o pipefail
+    if [ -z "$output" ] && [ $errcode -eq 124 ]; then  # 'timeout' returns 124 when timing out
+        wlog $name "WARN" "Ceph failed to respond in ${WAIT_FOR_CMD}s when running: $cmd"
+        CEPH_FAILURE="true"
+        echo ""; return 1
+    fi
+    output=$(cat $DATA_PATH/.ceph_cmd_out)
+    if [ -z "$output" ] || [ $errcode -ne 0 ]; then
+        wlog $name "WARN" "Error executing: $cmd errorcode: $errcode output: $output"
+        echo ""; return 1
+    fi
+    eval "$ret=\"$output\""; return $errcode
+}
+
 verify_conf() {
     # fetch conf?
     if [ -x "$ETCDIR/fetch_config" ] && [ "$conf" = "$default_conf" ]; then
@@ -29,7 +78,6 @@ verify_conf() {
 	fi
     fi
 }
-
 
 check_host() {
     # what host is this daemon assigned to?
