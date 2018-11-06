@@ -8,6 +8,5 @@ def choose_init():
 
     Returns the name of a init system (upstart, sysvinit ...).
     """
-    if release and int(release.split('.')[0]) >= 7:
-        return 'systemd'
+    # Don't use systemd
     return 'sysvinit'
