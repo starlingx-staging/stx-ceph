@@ -21,6 +21,7 @@ if [ `dirname $0` = "." ] && [ $PWD != "/etc/init.d" ]; then
     # looks like an autotools src dir build
     BINDIR=.
     SBINDIR=.
+    LIBDIR=.
     LIBEXECDIR=.
     ETCDIR=.
     ASSUME_DEV=1
@@ -40,7 +41,8 @@ else
     else
 	BINDIR=/usr/bin
 	SBINDIR=/usr/sbin
-	LIBEXECDIR=/usr/lib64/ceph
+	LIBDIR=/usr/lib64/ceph
+	LIBEXECDIR=$LIBDIR
 	ETCDIR=/etc/ceph
 	ASSUME_DEV=0
     fi
