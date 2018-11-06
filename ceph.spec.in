@@ -14,6 +14,11 @@
 #
 # Please submit bugfixes or comments via http://tracker.ceph.com/
 #
+
+# WRS: Ceph takes long time to generate debuginfo package which is not used
+# so disable it here.
+%define debug_package %{nil}
+
 %bcond_without ocf
 %bcond_with make_check
 %ifarch s390 s390x
@@ -982,8 +987,9 @@ ln -sf %{_sbindir}/mount.ceph %{buildroot}/sbin/mount.ceph
 
 # udev rules
 install -m 0644 -D udev/50-rbd.rules %{buildroot}%{_udevrulesdir}/50-rbd.rules
-install -m 0644 -D udev/60-ceph-by-parttypeuuid.rules %{buildroot}%{_udevrulesdir}/60-ceph-by-parttypeuuid.rules
-install -m 0644 -D udev/95-ceph-osd.rules %{buildroot}%{_udevrulesdir}/95-ceph-osd.rules
+install -m 0640 -D udev/60-ceph-by-parttypeuuid.rules %{buildroot}%{_udevrulesdir}/60-ceph-by-parttypeuuid.rules
+# Exclude the ceph-osd.rules
+#install -m 0644 -D udev/95-ceph-osd.rules %{buildroot}%{_udevrulesdir}/95-ceph-osd.rules
 
 #set up placeholder directories
 mkdir -p %{buildroot}%{_sysconfdir}/ceph
@@ -1000,6 +1006,23 @@ mkdir -p %{buildroot}%{_localstatedir}/lib/ceph/bootstrap-mds
 mkdir -p %{buildroot}%{_localstatedir}/lib/ceph/bootstrap-rgw
 mkdir -p %{buildroot}%{_localstatedir}/lib/ceph/bootstrap-mgr
 mkdir -p %{buildroot}%{_localstatedir}/lib/ceph/bootstrap-rbd
+
+install -d -m 750 %{buildroot}%{_sysconfdir}/services.d/controller
+install -d -m 750 %{buildroot}%{_sysconfdir}/services.d/storage
+mkdir -p %{buildroot}%{_initrddir}
+mkdir -p %{buildroot}%{_sysconfdir}/ceph
+mkdir -p %{buildroot}%{_unitdir}
+
+install -m 750 wrs/ceph.sh %{buildroot}%{_sysconfdir}/services.d/controller/
+install -m 750 wrs/ceph.sh %{buildroot}%{_sysconfdir}/services.d/storage/
+install -m 750 wrs/ceph-rest-api %{buildroot}%{_initrddir}/
+install -m 750 wrs/ceph.conf.pmon %{buildroot}%{_sysconfdir}/ceph/
+install -m 750 wrs/ceph_pmon_wrapper.sh %{buildroot}%{_sysconfdir}/ceph/
+install -m 640 wrs/ceph.conf %{buildroot}%{_sysconfdir}/ceph/
+install -m 700 wrs/ceph-manage-journal.py %{buildroot}/usr/sbin/ceph-manage-journal
+install -m 644 wrs/ceph.service $RPM_BUILD_ROOT/%{_unitdir}/ceph.service
+install -m 644 wrs/ceph-rest-api.service $RPM_BUILD_ROOT/%{_unitdir}/ceph-rest-api.service
+install -m 644 wrs/ceph-radosgw.service $RPM_BUILD_ROOT/%{_unitdir}/ceph-radosgw.service
 
 %if 0%{?suse_version}
 # create __pycache__ directories and their contents
@@ -1021,8 +1044,13 @@ rm -rf %{buildroot}
 %{_bindir}/ceph-kvstore-tool
 %{_bindir}/ceph-run
 %{_bindir}/ceph-detect-init
+%{_sysconfdir}/ceph/ceph.conf.pmon
+%{_sysconfdir}/ceph/ceph_pmon_wrapper.sh
+%config(noreplace) %{_sysconfdir}/ceph/ceph.conf
+%{_sysconfdir}/services.d/*
 %{_libexecdir}/systemd/system-preset/50-ceph.preset
 %{_sbindir}/ceph-create-keys
+%{_sbindir}/ceph-manage-journal
 %{_sbindir}/ceph-disk
 %dir %{_libexecdir}/ceph
 %{_libexecdir}/ceph/ceph_common.sh
@@ -1182,7 +1210,7 @@ fi
 %config %{_sysconfdir}/bash_completion.d/rados
 %config %{_sysconfdir}/bash_completion.d/rbd
 %config %{_sysconfdir}/bash_completion.d/radosgw-admin
-%config(noreplace) %{_sysconfdir}/ceph/rbdmap
+%attr(640,root,root) %config(noreplace) %{_sysconfdir}/ceph/rbdmap
 %{_unitdir}/rbdmap.service
 %if 0%{with python2}
 %{python_sitelib}/ceph_argparse.py*
@@ -1338,6 +1366,9 @@ fi
 %{_mandir}/man8/ceph-mon.8*
 %{_unitdir}/ceph-mon@.service
 %{_unitdir}/ceph-mon.target
+%{_unitdir}/ceph.service
+%{_unitdir}/ceph-rest-api.service
+%{_unitdir}/ceph-radosgw.service
 %attr(750,ceph,ceph) %dir %{_localstatedir}/lib/ceph/mon
 
 %post mon
@@ -1503,12 +1534,14 @@ fi
 %{_bindir}/ceph-objectstore-tool
 %{_bindir}/ceph-osdomap-tool
 %{_bindir}/ceph-osd
+%{_sbindir}/ceph-manage-journal
 %{_libexecdir}/ceph/ceph-osd-prestart.sh
 %{_sbindir}/ceph-volume
 %{_sbindir}/ceph-volume-systemd
 %dir %{_udevrulesdir}
 %{_udevrulesdir}/60-ceph-by-parttypeuuid.rules
-%{_udevrulesdir}/95-ceph-osd.rules
+# Exclude the ceph-osd.rules
+#%{_udevrulesdir}/95-ceph-osd.rules
 %{_mandir}/man8/ceph-clsinfo.8*
 %{_mandir}/man8/ceph-osd.8*
 %{_mandir}/man8/ceph-bluestore-tool.8*

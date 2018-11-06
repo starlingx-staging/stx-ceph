@@ -2448,6 +2448,19 @@ class PrepareSpace(object):
                 getattr(self.args, self.name),
             ],
         )
+
+        if self.name == 'journal':
+            # Erase journal partition so ceph doesn't attempt to re-use a
+            # journal that was on this disk previously.
+            LOG.debug('Erasing journal partition %s', self.space_symlink)
+            command(
+                [
+                    'dd',
+                    'if=/dev/zero',
+                    'of=' + self.space_symlink,
+                ],
+            )
+
         update_partition(getattr(self.args, self.name), 'prepared')
 
         LOG.debug('%s is GPT partition %s',
@@ -3183,8 +3196,7 @@ def mkfs(
                 '--monmap', monmap,
                 '--osd-data', path,
                 '--osd-uuid', fsid,
-                '--setuser', get_ceph_user(),
-                '--setgroup', get_ceph_group(),
+                 # don't run as ceph
             ],
         )
     elif osd_type == 'filestore':
@@ -3199,8 +3211,7 @@ def mkfs(
                 '--osd-data', path,
                 '--osd-journal', os.path.join(path, 'journal'),
                 '--osd-uuid', fsid,
-                '--setuser', get_ceph_user(),
-                '--setgroup', get_ceph_group(),
+                 # don't run as ceph
             ],
         )
     else:
@@ -4304,6 +4315,10 @@ def get_dev_fs(dev):
         )
         if 'TYPE' in fscheck:
             fstype = fscheck.split()[1].split('"')[1]
+            if isinstance(fstype, str):
+                fstype = fstype.translate(None, " \\")
+            elif isinstance(fstype, unicode):
+                fstype = fstype.translate({ord(u' '): None, ord(u'\\'): None})
             return fstype
     return None
 
