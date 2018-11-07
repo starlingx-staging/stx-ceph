@@ -846,6 +846,10 @@ python-rbd, python-rgw or python-cephfs instead.
 #################################################################################
 %prep
 %autosetup -p1 -n @TARBALL_BASENAME@
+# Titanium Cloud :Copy the .git_version file needed by the build
+#     This commit SHA is from the upstream src rpm which is the base of this repo branch
+#     TODO: Add a commit hook to update to our latest commit SHA
+cp wrs/wrs_git_version %{_builddir}/%{name}-%{version}/src/.git_version
 
 %build
 
