@@ -48,7 +48,6 @@ BINDIR=/usr/bin
 SBINDIR=/usr/sbin
 LIBDIR=/usr/lib64/ceph
 ETCDIR=/etc/ceph
-COREDIR=/var/lib/systemd/coredump
 source $LIBDIR/ceph_common.sh
 
 LOG_PATH=/var/log/ceph
@@ -149,16 +148,19 @@ log_and_kill_hung_procs ()
             let monitoring-=1
             sleep 1
         done
-
-        core_file="$COREDIR/core.ceph-${type}.${UID}.$(cat /etc/machine-id).${pid}.$(date +%s%N)"
-        wlog $name "INFO" "Dumping core to: $core_file"
-        gcore -o $core_file $pid &>/dev/null
-        mv ${core_file}.$pid ${core_file}
-        wlog $name "INFO" "Archiving core file (in background)"
-        $(xz -z $core_file -T 8) &
-        wlog $name "INFO" "Killing process, it will be restarted by pmon..."
-        kill -KILL $pid &>/dev/null
+        wlog $name "INFO" "Trigger core dump"
+        kill -ABRT $pid &>/dev/null
         rm -f $pid_file # process is dead, core dump is archiving, preparing for restart
+        # Wait for pending systemd core dumps
+        sleep 2 # hope systemd_coredump has started meanwhile
+        deadline=$(( $(date '+%s') + 300 ))
+        while [[ $(date '+%s') -lt "${deadline}" ]]; do
+            systemd_coredump_pid=$(pgrep -f "systemd-coredump.*${pid}.*ceph-${type}")
+            [[ -z "${systemd_coredump_pid}" ]] && break
+            wlog $name "INFO" "systemd-coredump ceph-${type} in progress: pid ${systemd_coredump_pid}"
+            sleep 2
+        done
+        kill -KILL $pid &>/dev/null
     done
 }
 
