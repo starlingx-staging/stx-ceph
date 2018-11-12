@@ -18,7 +18,7 @@
 ###################################
 # BEGIN inline ceph_tis.spec.inc  #
 ###################################
-# TiS config overrides
+# Titanium Cloud config overrides
 # NOTE:
 #   - bcond_without <feature> tells RPM to define with_<feature> unless
 #     --without-<feature> is explicitly present in the command line.
@@ -102,7 +102,7 @@
 %define tis_assert_feature() \
     %{expand:%%tis_assert_feature_%2 %1}
 
-# TiS "configure" safeguards
+# Titanium Cloud "configure" safeguards
 #
 %define tis_check_config \
     %undefine tis_abort_build \
@@ -150,7 +150,7 @@
     \
     %{?tis_abort_build:exit 1}
 
-# TiS configure utils
+# Titanium Cloud configure utils
 #
 %define configure_feature() %{expand:%%{?with_%{1}:--enable-%{lua: print(rpm.expand("%{1}"):gsub("_","-"):match("^%s*(.*%S)"))}}%%{!?with_%{1}:--disable-%{lua: print(rpm.expand("%{1}"):gsub("_","-"):match("^%s*(.*%S)"))}}}
 
@@ -1007,7 +1007,7 @@ python-rbd, python-rgw or python-cephfs instead.
 #################################################################################
 %prep
 %autosetup -p1 -n @TARBALL_BASENAME@
-# TiS:Copy the .git_version file needed by the build
+# Titanium Cloud:Copy the .git_version file needed by the build
 #     This commit SHA is from the upstream src rpm which is the base of this repo branch
 #     TODO: Add a commit hook to update to our latest commit SHA
 cp wrs/wrs_git_version %{_builddir}/%{name}-%{version}/src/.git_version

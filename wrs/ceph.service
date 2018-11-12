@@ -1,5 +1,5 @@
 [Unit]
-Description=Ceph Startup
+Description=Titanium Cloud Ceph Startup
 After=network.target
 
 [Service]
