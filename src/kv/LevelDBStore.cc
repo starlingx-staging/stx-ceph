@@ -110,8 +110,8 @@ int LevelDBStore::load_leveldb_options(bool create_if_missing, leveldb::Options 
   ldoptions.create_if_missing = create_if_missing;
 
   if (g_conf->leveldb_log_to_ceph_log) {
-    ceph_logger = new CephLevelDBLogger(g_ceph_context);
-    ldoptions.info_log = ceph_logger;
+    ceph_logger.reset(new CephLevelDBLogger(g_ceph_context));
+    ldoptions.info_log = ceph_logger.get();
   }
   
   if (options.log_file.length()) {
@@ -169,6 +169,21 @@ int LevelDBStore::_test_init(const string& dir)
   return status.ok() ? 0 : -EIO;
 }
 
+LevelDBStore::LevelDBStore(CephContext *c, const string &path) :
+    cct(c),
+    logger(NULL),
+    path(path),
+    db_cache(NULL),
+#ifdef HAVE_LEVELDB_FILTER_POLICY
+    filterpolicy(NULL),
+#endif
+    compact_queue_lock("LevelDBStore::compact_thread_lock"),
+    compact_queue_stop(false),
+    compact_thread(this),
+    options()
+{
+}
+
 LevelDBStore::~LevelDBStore()
 {
   close();
@@ -176,7 +191,6 @@ LevelDBStore::~LevelDBStore()
 
   // Ensure db is destroyed before dependent db_cache and filterpolicy
   db.reset();
-  delete ceph_logger;
 }
 
 void LevelDBStore::close()
