@@ -58,7 +58,7 @@ class CephLevelDBLogger;
 class LevelDBStore : public KeyValueDB {
   CephContext *cct;
   PerfCounters *logger;
-  CephLevelDBLogger *ceph_logger;
+  boost::scoped_ptr<CephLevelDBLogger> ceph_logger;
   string path;
   boost::scoped_ptr<leveldb::Cache> db_cache;
 #ifdef HAVE_LEVELDB_FILTER_POLICY
@@ -154,21 +154,7 @@ public:
     {}
   } options;
 
-  LevelDBStore(CephContext *c, const string &path) :
-    cct(c),
-    logger(NULL),
-    ceph_logger(NULL),
-    path(path),
-    db_cache(NULL),
-#ifdef HAVE_LEVELDB_FILTER_POLICY
-    filterpolicy(NULL),
-#endif
-    compact_queue_lock("LevelDBStore::compact_thread_lock"),
-    compact_queue_stop(false),
-    compact_thread(this),
-    options()
-  {}
-
+  LevelDBStore(CephContext *c, const string &path);
   ~LevelDBStore() override;
 
   static int _test_init(const string& dir);
