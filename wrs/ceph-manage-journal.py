@@ -115,12 +115,12 @@ def create_partitions(disk_path, partition_sizes):
     # Obtain the device node from the device path.
     disk_node = device_path_to_device_node(disk_path)
 
-    # CGTS-4320: After creating a new partition table on a device, Udev does not
+    # After creating a new partition table on a device, Udev does not
     # always remove old symlinks (i.e. to previous partitions on that device).
     # Also, even if links are erased before zapping the disk, some of them will
     # be recreated even though there is no partition to back them!
     # Therefore, we have to remove the links AFTER we erase the partition table
-    # CGTS-4565: DISK_BY_PARTUUID directory is not present at all if there are no
+    # DISK_BY_PARTUUID directory is not present at all if there are no
     # GPT partitions on the storage node so nothing to remove in this case
     links = []
     if os.path.isdir(DISK_BY_PARTUUID):
