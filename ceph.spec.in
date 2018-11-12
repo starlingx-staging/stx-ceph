@@ -1144,7 +1144,9 @@ install -m 0644 -D etc/sysconfig/ceph %{buildroot}%{_sysconfdir}/sysconfig/ceph
 %if 0%{?suse_version}
 install -m 0644 -D etc/sysconfig/ceph %{buildroot}%{_fillupdir}/sysconfig.%{name}
 %endif
+%if %{without tis}
 install -m 0644 -D systemd/ceph.tmpfiles.d %{buildroot}%{_tmpfilesdir}/ceph-common.conf
+%endif
 mkdir -p %{buildroot}%{_sbindir}
 %if %{without tis}
 install -m 0644 -D systemd/50-ceph.preset %{buildroot}%{_libexecdir}/systemd/system-preset/50-ceph.preset
@@ -1387,7 +1389,9 @@ fi
 %{_bindir}/rbd-replay-prep
 %endif
 %{_bindir}/ceph-post-file
+%if %{without tis}
 %{_tmpfilesdir}/ceph-common.conf
+%endif
 %if %{with man_pages}
 %{_mandir}/man8/ceph-authtool.8*
 %{_mandir}/man8/ceph-conf.8*
@@ -1463,7 +1467,9 @@ exit 0
 %endif
 
 %post common
+%if %{without tis}
 %tmpfiles_create %{_tmpfilesdir}/ceph-common.conf
+%endif
 
 %postun common
 # Package removal cleanup
