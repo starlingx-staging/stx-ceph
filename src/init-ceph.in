@@ -93,9 +93,9 @@ mkdir -p $DATA_PATH         # make sure folder exists
 #timeouts
 WAIT_FOR_CMD=10                 # max wait for a response from Ceph
 WAIT_FOR_OSD_OPERATIONAL=300    # max wait for OSD to go 'up' when in startup state
-WAIT_FOR_OSD_DOWN_CONFIRM=30    # even if OSD is down it may be flapping, wait for a while
+WAIT_FOR_OSD_DOWN_CONFIRM=300   # even if OSD is down it may be flapping, wait for a while
 WAIT_FOR_MON_OPERATIONAL=60     # max wait for MON to go 'up' when in startup state
-WAIT_FOR_MON_DOWN_CONFIRM=300    # even if MON is down it may be flapping, wait for a while
+WAIT_FOR_MON_DOWN_CONFIRM=300   # even if MON is down it may be flapping, wait for a while
 
 # Blocked Ops Detection (values in seconds)
 BLOCKED_OPS_DETECTION_ENABLED="true" # Enable/Disable detection
