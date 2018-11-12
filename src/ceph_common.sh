@@ -104,7 +104,14 @@ check_host() {
     fi
 
     # sysvinit managed instance in standard location?
-    if [ -e "/var/lib/ceph/$type/$cluster-$id/sysvinit" ]; then
+    # 'sysvinit' file is required to start the daemon.
+    # For osd daemon on a storage host, this file is created during 'ceph-disk activate-all',
+    # executed from '/etc/init.d/ceph'.
+    # It is possible to have transitory disk I/O errors causing activate to fail
+    # and not create 'sysvinit' file. Also, all osd daemons listed here are local.
+    # Give pmon a chance to restart the osd daemon.
+    # If daemon type is 'osd', skip checking for 'sysvinit' file presence.
+    if [ -e "/var/lib/ceph/$type/$cluster-$id/sysvinit" ] || [ "$type" = "osd" ]; then
 	host="$hostname"
 	echo "=== $type.$id === "
 	return 0
@@ -209,9 +216,22 @@ get_local_daemon_list() {
     if [ -d "/var/lib/ceph/$type" ]; then
 	for p in `find -L /var/lib/ceph/$type -mindepth 1 -maxdepth 1 -type d`; do
 	    i=`basename $p` 
-	    if [ -e "/var/lib/ceph/$type/$i/sysvinit" ]; then
-		id=`echo $i | sed 's/[^-]*-//'`
-		local="$local $type.$id"
+
+	    # 'sysvinit' file is required to start a ceph daemon.
+	    # For osd daemon on a storage host, this file is created during 'ceph-disk activate-all',
+	    # executed from '/etc/init.d/ceph'.
+	    # It is possible to have transitory disk I/O errors causing activate to fail
+	    # and not create 'sysvinit' file. Give pmon a chance to restart the osd daemon.
+	    # For other ceph daemons, 'sysvinit' file creation is triggered differently
+	    # (e.g. puppet creates it for monitors).
+	    # If daemon type is 'osd', skip checking for 'sysvinit' file presence.
+	    id=`echo $i | sed 's/[^-]*-//'`
+	    daemon="$type.$id"
+	    if [ ! -e "/var/lib/ceph/$type/$i/sysvinit" ] && [ "$command" = "start" ] && [ "$id" != "lost+found" ]; then
+		    wlog "$daemon" "WARN" "/var/lib/ceph/$type/$i/sysvinit file is missing"
+	    fi
+	    if [ -e "/var/lib/ceph/$type/$i/sysvinit" ] || [ "$type" = "osd" ]; then
+		    local="$local $daemon"
 	    fi
 	done
     fi
