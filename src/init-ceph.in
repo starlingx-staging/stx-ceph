@@ -732,10 +732,21 @@ for name in $what; do
 
     case "$command" in
 	start|onestart)
-            # Increase max_open_files, if the configuration calls for it.
-            get_conf max_open_files "32768" "max open files"
+	    # Increase max_open_files, if the configuration calls for it.
+	    get_conf max_open_files "32768" "max open files"
+	    # Remove stale admin socket
+	    [ -n "$asok" ] && rm -f $asok
 
-            # build final command
+	    # Wait for pending systemd core dumps
+	    deadline=$(( $(date '+%s') + 300 ))
+	    while [[ $(date '+%s') -lt "${deadline}" ]]; do
+	        systemd_coredump_pid=$(pgrep -f "systemd-coredump.*ceph-${type}")
+	        [[ -z "${systemd_coredump_pid}" ]] && break
+	        wlog $name "INFO" "systemd-coredump ceph-${type} in progress: pid ${systemd_coredump_pid}"
+	        sleep 1
+	    done
+
+	    # build final command
 	    wrap=""
 	    runmode=""
 	    runarg=""
