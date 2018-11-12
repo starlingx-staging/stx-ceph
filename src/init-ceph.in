@@ -99,8 +99,8 @@ WAIT_FOR_MON_DOWN_CONFIRM=20    # even if MON is down it may be flapping, wait f
 
 # Blocked Ops Detection (values in seconds)
 BLOCKED_OPS_DETECTION_ENABLED="true" # Enable/Disable detection
-BLOCKED_OPS_START_DETECTION=120      # Wait on OSD startup before handling blocked ops
-BLOCKED_OPS_RESTART_THRESH=180       # Restart OSD if blocked reqs are longer that this
+BLOCKED_OPS_START_DETECTION=300      # Wait on OSD startup before handling blocked ops
+BLOCKED_OPS_RESTART_THRESH=480       # Restart OSD if blocked reqs are longer that this
 
 LOG_LEVEL=NORMAL  # DEBUG
 
