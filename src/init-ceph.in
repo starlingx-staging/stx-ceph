@@ -657,6 +657,8 @@ if [ "$command" = "stop" -o "$command" = "onestop" ]; then
     what="$new_order"
 fi
 
+WAIT_OSD_STOP=""
+
 for name in $what; do
     type=`echo $name | cut -c 1-3`   # e.g. 'mon', if $item is 'mon1'
     id=`echo $name | cut -c 4- | sed 's/^\\.//'`
@@ -850,6 +852,7 @@ for name in $what; do
 	    [ -n "$lockfile" ] && [ "$?" -eq 0 ] && rm -f $lockfile
 	    # flush journal to data disk in background
 	    if [ "$type" = "osd" ];then
+	        WAIT_OSD_STOP="${WAIT_OSD_STOP} $id"
 	        $(/usr/bin/ceph-osd -i $id --flush-journal) &
 	    fi
 	    wlog $name "INFO" "Process stopped, setting state to $ST_STOPPED"
@@ -962,6 +965,7 @@ done
 # wait for journal flushing to complete
 if [ $command == "stop" ]; then
     wait
+    osd-wait-status -o ${WAIT_OSD_STOP} -n -s up -i 3 -d 300
 fi
 
 # activate latent osds?

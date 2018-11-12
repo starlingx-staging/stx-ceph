@@ -1206,6 +1206,7 @@ install -m 750 wrs/ceph.conf.pmon %{buildroot}%{_sysconfdir}/ceph/
 install -m 750 wrs/ceph_pmon_wrapper.sh %{buildroot}%{_sysconfdir}/ceph/
 install -m 640 wrs/ceph.conf %{buildroot}%{_sysconfdir}/ceph/
 install -m 700 wrs/ceph-manage-journal.py %{buildroot}/usr/sbin/ceph-manage-journal
+install -m 700 wrs/osd-wait-status.py %{buildroot}/usr/sbin/osd-wait-status
 install -m 644 wrs/ceph.service $RPM_BUILD_ROOT/%{_unitdir}/ceph.service
 install -m 644 wrs/ceph-rest-api.service $RPM_BUILD_ROOT/%{_unitdir}/ceph-rest-api.service
 install -m 644 wrs/ceph-radosgw.service $RPM_BUILD_ROOT/%{_unitdir}/ceph-radosgw.service
