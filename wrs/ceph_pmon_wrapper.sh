@@ -110,6 +110,17 @@ restart ()
 
 }
 
+log_and_restart_blocked_osds ()
+{
+    # Log info about the blocked osd daemons and then restart it
+    local names=$1
+    for name in $names;
+    do
+        wlog $name "INFO" "Restarting OSD with blocked operations"
+        ${CEPH_SCRIPT} restart $name
+    done
+}
+
 log_and_kill_hung_procs ()
 {
     # Log info about the hung processes and then kill them; later on pmon will restart them
@@ -169,6 +180,7 @@ status ()
         if [ "$RC" -ne 0 ]; then
             erred_procs=`echo "$result" | sort | uniq | awk ' /not running|dead|failed/ {printf "%s ", $1}' | sed 's/://g' | sed 's/, $//g'`
             hung_procs=`echo "$result" | sort | uniq | awk ' /hung/ {printf "%s ", $1}' | sed 's/://g' | sed 's/, $//g'`
+            blocked_ops_procs=`echo "$result" | sort | uniq | awk ' /blocked ops/ {printf "%s ", $1}' | sed 's/://g' | sed 's/, $//g'`
             invalid=0
             host=`hostname`
             for i in $(echo $erred_procs $hung_procs)
@@ -180,6 +192,7 @@ status ()
                fi
             done
 
+            log_and_restart_blocked_osds $blocked_ops_procs
             log_and_kill_hung_procs $hung_procs
 
             hung_procs_text=""
