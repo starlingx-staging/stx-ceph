@@ -747,71 +747,110 @@ class OSError(Error):
         return (self.__class__, (self.message, self.errno))
 
 class PermissionError(OSError):
-    pass
+    def __init__(self, msg):
+        super(PermissionError, self).__init__(
+                ("RBD permission error (%s)" % msg))
 
 
 class ImageNotFound(OSError):
-    pass
+    def __init__(self, msg):
+        super(ImageNotFound, self).__init__(
+                ("RBD image not found (%s)" % msg))
+
 
 class ObjectNotFound(OSError):
-    pass
+    def __init__(self, msg):
+        super(ObjectNotFound, self).__init__(
+                ("RBD object not found (%s)" % msg))
+
 
 class ImageExists(OSError):
-    pass
+    def __init__(self, msg):
+        super(ImageExists, self).__init__(
+                ("RBD image already exists (%s)" %msg))
+
 
 class ObjectExists(OSError):
     pass
 
 
 class IOError(OSError):
-    pass
+    def __init__(self, msg):
+        super(IOError, self).__init__(
+                ("RBD I/O error (%s)" %msg))
 
 
 class NoSpace(OSError):
-    pass
+    def __init__(self, msg):
+        super(NoSpace, self).__init__(
+                ("RBD insufficient space available (%s)" %
+                 msg))
 
 
 class IncompleteWriteError(OSError):
-    pass
+    def __init__(self, msg):
+        super(IncompleteWriteError, self).__init__(
+               ("RBD incomplete write error (%s)" % msg))
 
 
 class InvalidArgument(OSError):
-    pass
+    def __init__(self, msg):
+        super(InvalidArgument, self).__init__(
+                ("RBD invalid argument (%s)" % msg))
 
 
 class LogicError(Error):
-    pass
+    def __init__(self, msg):
+        super(LogicError, self).__init__(
+                ("RBD logic error (%s)" % msg))
 
 
 class ReadOnlyImage(OSError):
-    pass
+    def __init__(self, msg):
+        super(ReadOnlyImage, self).__init__(
+                ("RBD read-only image (%s)" % msg))
 
 
 class ImageBusy(OSError):
-    pass
+    def __init__(self, msg):
+        super(ImageBusy, self).__init__(
+                "RBD image is busy")
 
 
 class ImageHasSnapshots(OSError):
-    pass
+    def __init__(self, msg):
+        super(ImageHasSnapshots, self).__init__(
+                ("RBD image has snapshots (%s)" % msg))
 
 
 class FunctionNotSupported(OSError):
-    pass
+    def __init__(self, msg):
+        super(FunctionNotSupported, self).__init__(
+                ("RBD function not supported (%s)" % msg))
 
 
 class ArgumentOutOfRange(OSError):
-    pass
+    def __init__(self, msg):
+        super(ArgumentOutOfRange, self).__init__(
+                ("RBD arguments out of range (%s)" % msg))
 
 
 class ConnectionShutdown(OSError):
-    pass
+    def __init__(self, msg):
+        super(ConnectionShutdown, self).__init__(
+                ("RBD connection was shutdown (%s)" % msg))
 
 
 class Timeout(OSError):
-    pass
+    def __init__(self, msg):
+        super(Timeout, self).__init__(
+                ("RBD operation timeout (%s)" % msg))
+
 
 class DiskQuotaExceeded(OSError):
-    pass
+    def __init__(self, msg):
+        super(DiskQuotaExceeded, self).__init__(
+                ("RBD Disk Quota Exceeded (%s)" % msg))
 
 class OperationNotSupported(OSError):
     def __init__(self, message, errno=None):
