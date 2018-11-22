@@ -354,7 +354,7 @@ class Error(Exception):
 class InvalidArgumentError(Error):
     def __init__(self, msg):
         super(InvalidArgumentError, self).__init__(
-            ("RBD Invalid Argument error (%s)" % msg))
+            ("RADOS Invalid Argument error (%s)" % msg))
 
 
 class OSError(Error):
@@ -365,108 +365,112 @@ class InterruptedOrTimeoutError(OSError):
     """ `InterruptedOrTimeoutError` class, derived from `OSError` """
     def __init__(self, msg):
         super(InterruptedOrTimeoutError, self).__init__(
-            ("RBD Interrupted or Timeout error (%s)" % msg))
+            ("RADOS Interrupted or Timeout error (%s)" % msg))
 
 
 class PermissionError(OSError):
     """ `PermissionError` class, derived from `OSError` """
     def __init__(self, msg):
         super(PermissionError, self).__init__(
-            ("RBD Permission error (%s)" % msg))
+            ("RADOS Permission error (%s)" % msg))
 
 
 class PermissionDeniedError(OSError):
     """ deal with EACCES related. """
     def __init__(self, msg):
         super(PermissionDeniedError, self).__init__(
-                ("RBD Permission Denied error (%s)" % msg))
+                ("RADOS Permission Denied error (%s)" % msg))
 
 
 class ObjectNotFound(OSError):
     """ `ObjectNotFound` class, derived from `OSError` """
     def __init__(self, msg):
         super(ObjectNotFound, self).__init__(
-                ("RBD Object Not Found error (%s)" % msg))
+                ("RADOS Object Not Found error (%s)" % msg))
 
 
 class NoData(OSError):
     """ `NoData` class, derived from `OSError` """
     def __init__(self, msg):
         super(NoData, self).__init__(
-                ("RBD No Data error (%s)" % msg))
+                ("RADOS No Data error (%s)" % msg))
 
 
 class ObjectExists(OSError):
     """ `ObjectExists` class, derived from `OSError` """
     def __init__(self, msg):
         super(ObjectExists, self).__init__(
-                ("RBD Object Exists error (%s)" % msg))
+                ("RADOS Object Exists error (%s)" % msg))
 
 
 class ObjectBusy(OSError):
     """ `ObjectBusy` class, derived from `IOError` """
     def __init__(self, msg):
         super(ObjectBusy, self).__init__(
-                ("RBD Object Busy error (%s)" % msg))
+                ("RADOS Object Busy error (%s)" % msg))
 
 
 class IOError(OSError):
     """ `ObjectBusy` class, derived from `OSError` """
     def __init__(self, msg):
         super(IOError, self).__init__(
-                ("RBD I/O error (%s)" % msg))
+                ("RADOS I/O error (%s)" % msg))
 
 
 class NoSpace(OSError):
     """ `NoSpace` class, derived from `OSError` """
     def __init__(self, msg):
         super(NoSpace, self).__init__(
-                ("RBD No Space error (%s)" % msg))
+                ("RADOS No Space error (%s)" % msg))
 
 
 class RadosStateError(Error):
     """ `RadosStateError` class, derived from `Error` """
     def __init__(self, msg):
         super(RadosStateError, self).__init__(
-                ("RBD Rados State error (%s)" % msg))
+                ("RADOS Rados State error (%s)" % msg))
 
 
 class IoctxStateError(Error):
     """ `IoctxStateError` class, derived from `Error` """
     def __init__(self, msg):
         super(IoctxStateError, self).__init__(
-                ("RBD Ioctx State error (%s)" % msg))
+                ("RADOS Ioctx State error (%s)" % msg))
 
 
 class ObjectStateError(Error):
     """ `ObjectStateError` class, derived from `Error` """
     def __init__(self, msg):
         super(ObjectStateError, self).__init__(
-                ("RBD Object State error (%s)" % msg))
+                ("RADOS Object State error (%s)" % msg))
 
 
 class LogicError(Error):
     """ `` class, derived from `Error` """
     def __init__(self, msg):
         super(LogicError, self).__init__(
-            ("RBD Logic error (%s)" % msg))
+            ("RADOS Logic error (%s)" % msg))
 
 
 class TimedOut(OSError):
     """ `TimedOut` class, derived from `OSError` """
     def __init__(self, msg):
         super(TimedOut, self).__init__(
-                ("RBD Timed Out error (%s)" % msg))
+                ("RADOS Timed Out error (%s)" % msg))
 
 
 class InProgress(Exception):
     """ `InProgress` class, derived from `Error` """
-     pass
+    def __init__(self, msg):
+        super(InProgress, self).__init__(
+                ("RADOS In Progress error (%s)" %msg))
 
 
 class IsConnected(Error):
     """ `IsConnected` class, derived from `Error` """
-    pass
+    def __init__(self, msg):
+        super(IsConnected, self).__init__(
+                ("RADOS Is Connected error (%s)" %msg))
 
 
 IF UNAME_SYSNAME == "FreeBSD":
