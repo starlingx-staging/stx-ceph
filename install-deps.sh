@@ -36,7 +36,7 @@ function munge_ceph_spec_in {
 function ensure_decent_gcc_on_deb {
     # point gcc to the one offered by g++-7 if the used one is not
     # new enough
-    local old=$(gcc -dumpversion)
+    local old=$(gcc -dumpfullversion -dumpversion)
     local new=$1
     if dpkg --compare-versions $old ge 7.0; then
 	return
@@ -83,7 +83,7 @@ function version_lt {
 }
 
 function ensure_decent_gcc_on_rh {
-    local old=$(gcc -dumpversion)
+    local old=$(gcc -dumpfullversion -dumpversion)
     local expected=5.1
     local dts_ver=$1
     if version_lt $old $expected; then
