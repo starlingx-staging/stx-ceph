@@ -15,6 +15,148 @@
 # Please submit bugfixes or comments via http://tracker.ceph.com/
 #
 
+###################################
+# BEGIN inline ceph_tis.spec.inc  #
+###################################
+# StarlingX config overrides
+# NOTE:
+#   - bcond_without <feature> tells RPM to define with_<feature> unless
+#     --without-<feature> is explicitly present in the command line.
+#     A regular build does not use these arguments so bcond_without is
+#     effectively enabling <feature>
+#   - the same reversed logic applies to bcond_with. Its corresponding
+#     with_<feature> is undefined unless --with-<feature> is explicitly
+#     present in the command line.
+#
+%define tis_rpmbuild_defaults \
+    %{expand: \
+        %%bcond_without client \
+        %%bcond_without server \
+        %%bcond_without gitversion \
+        %%bcond_with subman \
+        %%bcond_with coverage \
+        %%bcond_with pgrefdebugging \
+        %%bcond_with cephfs_java \
+        %%bcond_with xio \
+        %%bcond_with valgrind \
+        %%bcond_with lttng \
+        %%bcond_with valgrind \
+        %%bcond_with selinux \
+        %%bcond_with profiler \
+        %%bcond_with man_pages \
+        %%bcond_without rados \
+        %%bcond_without rbd \
+        %%bcond_without cython \
+        %%bcond_without cephfs \
+        %%bcond_without radosgw \
+        %%bcond_with selinux \
+        %%bcond_without radosstriper \
+        %%bcond_without mon \
+        %%bcond_without osd \
+        %%bcond_without mds \
+        %%bcond_with cryptopp \
+        %%bcond_without nss \
+        %%bcond_with profiler \
+        %%bcond_with debug \
+        %%bcond_without fuse \
+        %%bcond_with jemalloc \
+        %%bcond_without tcmalloc \
+        %%bcond_with spdk \
+        %%bcond_without libatomic_ops \
+        %%bcond_with ocf \
+        %%bcond_with kinetic \
+        %%bcond_with librocksdb \
+        %%bcond_without libaio \
+        %%bcond_without libxfs \
+        %%bcond_with libzfs \
+        %%bcond_with lttng \
+        %%bcond_with babeltrace \
+        %%bcond_without eventfd \
+        %%bcond_without openldap }
+ %define tis_assert_without() \
+    %{expand:%%{?with_%1: \
+        %%{error:"%1" is enabled} \
+        %%global tis_abort_build 1}}
+ %define tis_assert_with() \
+    %{expand:%%{!?with_%1: \
+        %%{error:"%1" is disabled} \
+        %%global tis_abort_build 1}}
+ %define tis_assert_package_yes() \
+    %{expand:%%tis_assert_with %1}
+ %define tis_assert_package_no() \
+    %{expand:%%tis_assert_without %1}
+ %define tis_assert_package() \
+    %{expand:%%tis_assert_package_%2 %1}
+ %define tis_assert_feature_yes() \
+    %{expand:%%tis_assert_with %1}
+ %define tis_assert_feature_no() \
+    %{expand:%%tis_assert_without %1}
+ %define tis_assert_feature() \
+    %{expand:%%tis_assert_feature_%2 %1}
+ # StarlingX "configure" safeguards
+#
+%define tis_check_config \
+    %undefine tis_abort_build \
+    \
+    %tis_assert_feature client yes \
+    %tis_assert_feature server yes \
+    %tis_assert_feature subman no \
+    %tis_assert_feature gitversion yes \
+    %tis_assert_feature coverage no \
+    %tis_assert_feature pgrefdebugging no \
+    %tis_assert_feature cephfs_java no \
+    %tis_assert_feature xio no \
+    %tis_assert_feature valgrind no \
+    \
+    %tis_assert_package man_pages no \
+    %tis_assert_package rados yes \
+    %tis_assert_package rbd yes \
+    %tis_assert_package cython yes \
+    %tis_assert_package cephfs yes \
+    %tis_assert_package radosgw yes \
+    %tis_assert_package selinux no \
+    %tis_assert_package radosstriper yes \
+    %tis_assert_package mon yes \
+    %tis_assert_package osd yes \
+    %tis_assert_package mds yes \
+    %tis_assert_package cryptopp no \
+    %tis_assert_package nss yes \
+    %tis_assert_package profiler no \
+    %tis_assert_package debug no \
+    %tis_assert_package fuse yes \
+    %tis_assert_package jemalloc no \
+    %tis_assert_package tcmalloc yes \
+    %tis_assert_package spdk no \
+    %tis_assert_package libatomic_ops yes \
+    %tis_assert_package ocf no \
+    %tis_assert_package kinetic no \
+    %tis_assert_package librocksdb no \
+    %tis_assert_package libaio yes \
+    %tis_assert_package libxfs yes \
+    %tis_assert_package libzfs no \
+    %tis_assert_package lttng no \
+    %tis_assert_package babeltrace no \
+    %tis_assert_package eventfd yes \
+    %tis_assert_package openldap yes \
+    \
+    %{?tis_abort_build:exit 1}
+ # StarlingX configure utils
+#
+%define configure_feature() %{expand:%%{?with_%{1}:--enable-%{lua: print(rpm.expand("%{1}"):gsub("_","-"):match("^%s*(.*%S)"))}}%%{!?with_%{1}:--disable-%{lua: print(rpm.expand("%{1}"):gsub("_","-"):match("^%s*(.*%S)"))}}}
+ %define configure_package() %{expand:%%{?with_%{1}:--with-%{lua: print(rpm.expand("%{1}"):gsub("_","-"):match("^%s*(.*%S)"))}}%%{!?with_%{1}:--without-%{lua: print(rpm.expand("%{1}"):gsub("_","-"):match("^%s*(.*%S)"))}}}
+ # special case for tcmalloc: it's actually called tc
+#
+%define configure_package_tc %{expand:%%{?with_tcmalloc:--with-tc}%%{!?with_tcmalloc:--without-tc}}
+ ###################################
+#   END inline ceph_tis.spec.inc  #
+###################################
+%define _unpackaged_files_terminate_build 0
+%tis_rpmbuild_defaults
+%bcond_without tis
+
+
+#################################################
+
 %bcond_with python3
 %bcond_without ocf
 %bcond_with make_check
