@@ -96,7 +96,7 @@ License:	LGPL-2.1 and CC-BY-SA-3.0 and GPL-2.0 and BSL-1.0 and BSD-3-Clause and 
 Group:		System/Filesystems
 %endif
 URL:		http://ceph.com/
-Source0:	%{?_remote_tarball_prefix}ceph-13.2.2.tar.bz2
+Source0:	%{?_remote_tarball_prefix}ceph-13.2.2.tar.gz
 %if 0%{?suse_version}
 # _insert_obs_source_lines_here
 %if 0%{?is_opensuse}
