@@ -14,6 +14,8 @@
 #
 # Please submit bugfixes or comments via http://tracker.ceph.com/
 #
+
+%bcond_with python3
 %bcond_without ocf
 %bcond_with make_check
 %ifarch s390 s390x
@@ -216,6 +218,7 @@ BuildRequires:	python%{_python_buildid}-sphinx
 BuildRequires:	lz4-devel >= 1.7
 %endif
 # python34-... for RHEL, python3-... for all other supported distros
+%if %{with python3}
 %if 0%{?rhel}
 BuildRequires:	python34-devel
 BuildRequires:	python34-setuptools
@@ -224,6 +227,7 @@ BuildRequires:	python34-Cython
 BuildRequires:	python3-devel
 BuildRequires:	python3-setuptools
 BuildRequires:	python3-Cython
+%endif
 %endif
 # distro-conditional make check dependencies
 %if 0%{with make_check}
@@ -541,6 +545,7 @@ This package contains Python 2 libraries for interacting with Cephs RADOS
 gateway.
 %endif
 
+%if 0%{with python3}
 %package -n python%{python3_pkgversion}-rgw
 Summary:	Python 3 libraries for the RADOS gateway
 %if 0%{?suse_version}
@@ -551,6 +556,7 @@ Requires:	python%{python3_pkgversion}-rados = %{_epoch_prefix}%{version}-%{relea
 %description -n python%{python3_pkgversion}-rgw
 This package contains Python 3 libraries for interacting with Cephs RADOS
 gateway.
+%endif
 
 %if 0%{with python2}
 %package -n python-rados
@@ -565,6 +571,7 @@ This package contains Python 2 libraries for interacting with Cephs RADOS
 object store.
 %endif
 
+%if 0%{with python3}
 %package -n python%{python3_pkgversion}-rados
 Summary:	Python 3 libraries for the RADOS object store
 %if 0%{?suse_version}
@@ -575,6 +582,7 @@ Requires:	librados2 = %{_epoch_prefix}%{version}-%{release}
 %description -n python%{python3_pkgversion}-rados
 This package contains Python 3 libraries for interacting with Cephs RADOS
 object store.
+%endif
 
 %if 0%{with libradosstriper}
 %package -n libradosstriper1
@@ -649,6 +657,7 @@ This package contains Python 2 libraries for interacting with Cephs RADOS
 block device.
 %endif
 
+%if 0%{with python3}
 %package -n python%{python3_pkgversion}-rbd
 Summary:	Python 3 libraries for the RADOS block device
 %if 0%{?suse_version}
@@ -659,6 +668,7 @@ Requires:	python%{python3_pkgversion}-rados = %{_epoch_prefix}%{version}-%{relea
 %description -n python%{python3_pkgversion}-rbd
 This package contains Python 3 libraries for interacting with Cephs RADOS
 block device.
+%endif
 
 %package -n libcephfs2
 Summary:	Ceph distributed file system client library
@@ -706,6 +716,7 @@ This package contains Python 2 libraries for interacting with Cephs distributed
 file system.
 %endif
 
+%if 0%{with python3}
 %package -n python%{python3_pkgversion}-cephfs
 Summary:	Python 3 libraries for Ceph distributed file system
 %if 0%{?suse_version}
@@ -716,7 +727,9 @@ Requires:	python%{python3_pkgversion}-rados = %{_epoch_prefix}%{version}-%{relea
 %description -n python%{python3_pkgversion}-cephfs
 This package contains Python 3 libraries for interacting with Cephs distributed
 file system.
+%endif
 
+%if 0%{with python3}
 %if 0%{with python2}
 %package -n python%{python3_pkgversion}-ceph-argparse
 Summary:	Python 3 utility libraries for Ceph CLI
@@ -728,6 +741,7 @@ This package contains types and routines for Python 3 used by the Ceph CLI as
 well as the RESTful interface. These have to do with querying the daemons for
 command-description information, validating user command input against those
 descriptions, and submitting the command to the appropriate daemon.
+%endif
 %endif
 
 %if 0%{with ceph_test_package}
@@ -1056,17 +1070,21 @@ rm -rf %{buildroot}
 %{python_sitelib}/ceph_detect_init*
 %{python_sitelib}/ceph_disk*
 %else
+%if 0%{with python3}
 %{python3_sitelib}/ceph_detect_init*
 %{python3_sitelib}/ceph_disk*
+%endif
 %endif
 %if 0%{with python2}
 %dir %{python_sitelib}/ceph_volume
 %{python_sitelib}/ceph_volume/*
 %{python_sitelib}/ceph_volume-*
 %else
+%if 0%{with python3}
 %dir %{python3_sitelib}/ceph_volume
 %{python3_sitelib}/ceph_volume/*
 %{python3_sitelib}/ceph_volume-*
+%endif
 %endif
 %{_mandir}/man8/ceph-deploy.8*
 %{_mandir}/man8/ceph-detect-init.8*
@@ -1188,10 +1206,12 @@ fi
 %{python_sitelib}/ceph_argparse.py*
 %{python_sitelib}/ceph_daemon.py*
 %else
+%if 0%{with python3}
 %{python3_sitelib}/ceph_argparse.py
 %{python3_sitelib}/__pycache__/ceph_argparse.cpython*.py*
 %{python3_sitelib}/ceph_daemon.py
 %{python3_sitelib}/__pycache__/ceph_daemon.cpython*.py*
+%endif
 %endif
 %dir %{_udevrulesdir}
 %{_udevrulesdir}/50-rbd.rules
@@ -1619,9 +1639,11 @@ fi
 %{python_sitearch}/rados-*.egg-info
 %endif
 
+%if 0%{with python3}
 %files -n python%{python3_pkgversion}-rados
 %{python3_sitearch}/rados.cpython*.so
 %{python3_sitearch}/rados-*.egg-info
+%endif
 
 %if 0%{with libradosstriper}
 %files -n libradosstriper1
@@ -1681,9 +1703,11 @@ fi
 %{python_sitearch}/rgw-*.egg-info
 %endif
 
+%if 0%{with python3}
 %files -n python%{python3_pkgversion}-rgw
 %{python3_sitearch}/rgw.cpython*.so
 %{python3_sitearch}/rgw-*.egg-info
+%endif
 
 %if 0%{with python2}
 %files -n python-rbd
@@ -1691,9 +1715,11 @@ fi
 %{python_sitearch}/rbd-*.egg-info
 %endif
 
+%if 0%{with python3}
 %files -n python%{python3_pkgversion}-rbd
 %{python3_sitearch}/rbd.cpython*.so
 %{python3_sitearch}/rbd-*.egg-info
+%endif
 
 %files -n libcephfs2
 %{_libdir}/libcephfs.so.*
@@ -1715,18 +1741,22 @@ fi
 %{python_sitelib}/ceph_volume_client.py*
 %endif
 
+%if 0%{with python3}
 %files -n python%{python3_pkgversion}-cephfs
 %{python3_sitearch}/cephfs.cpython*.so
 %{python3_sitearch}/cephfs-*.egg-info
 %{python3_sitelib}/ceph_volume_client.py
 %{python3_sitelib}/__pycache__/ceph_volume_client.cpython*.py*
+%endif
 
+%if 0%{with python3}
 %if 0%{with python2}
 %files -n python%{python3_pkgversion}-ceph-argparse
 %{python3_sitelib}/ceph_argparse.py
 %{python3_sitelib}/__pycache__/ceph_argparse.cpython*.py*
 %{python3_sitelib}/ceph_daemon.py
 %{python3_sitelib}/__pycache__/ceph_daemon.cpython*.py*
+%endif
 %endif
 
 %if 0%{with ceph_test_package}
