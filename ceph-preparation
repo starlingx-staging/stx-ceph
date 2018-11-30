@@ -1,0 +1,127 @@
+#!/bin/sh -e
+
+if [ ! -d .git ]; then
+    echo "no .git present.  run this from the base dir of the git checkout."
+    exit 1
+fi
+
+version=$1
+[ -z "$version" ] && version=`git describe --match 'v*' | sed 's/^v//'`
+outfile="ceph-$version"
+
+echo "version $version"
+
+# move submodule downloading to "repo sync"
+echo "updating submodules..."
+force=$(if git submodule usage 2>&1 | grep --quiet 'update.*--force'; then echo --force ; fi)
+if ! git submodule update $force --init --recursive; then
+    echo "Error: could not initialize submodule projects"
+    echo "  Network connectivity might be required."
+    exit 1
+fi
+
+# move download boot to dl_tarball.sh
+# don't delete boost source code.
+download_boost() {
+    boost_version=$1
+    shift
+    boost_sha256=$1
+    shift
+    boost_version_underscore=$(echo $boost_version | sed 's/\./_/g')
+    boost_fname=boost_${boost_version_underscore}.tar.bz2
+    set +e
+    while true; do
+        url_base=$1
+        shift
+        if [ -z $url_base ]; then
+            echo "Error: failed to download boost."
+            exit
+        fi
+        url=$url_base/$boost_fname
+        if [ $? != 0 -o ! -e $boost_fname ]; then
+            echo "Download of $url failed"
+        elif [ $(sha256sum $boost_fname | awk '{print $1}') != $boost_sha256 ]; then
+            echo "Error: failed to download boost: SHA256 mismatch."
+        else
+            break
+        fi
+    done
+    set -e
+    tar xjf $boost_fname -C src \
+        --exclude="$boost_version_underscore/libs/*/doc" \
+        --exclude="$boost_version_underscore/libs/*/example" \
+        --exclude="$boost_version_underscore/libs/*/examples" \
+        --exclude="$boost_version_underscore/libs/*/meta" \
+        --exclude="$boost_version_underscore/libs/*/test" \
+        --exclude="$boost_version_underscore/tools/boostbook" \
+        --exclude="$boost_version_underscore/tools/quickbook" \
+        --exclude="$boost_version_underscore/tools/auto_index" \
+        --exclude='doc' --exclude='more' --exclude='status'
+    mv src/boost_${boost_version_underscore} src/boost
+    tar cf ${outfile}.boost.tar ${outfile}/src/boost
+}
+
+_python_autoselect() {
+  python_command=
+  for interpreter in python2.7 python3 ; do
+    type $interpreter > /dev/null 2>&1 || continue
+    python_command=$interpreter
+    break
+  done
+  if [ -z "$python_command" ] ; then
+    echo "Could not find a suitable python interpreter! Bailing out."
+    exit 1
+  fi
+  echo $python_command
+}
+
+# clean out old cruft...
+echo "cleanup..."
+rm -f $outfile*
+
+# build new tarball
+echo "building tarball..."
+bin/git-archive-all.sh --prefix ceph-$version/ \
+		       --verbose \
+		       --ignore corpus \
+		       $outfile.tar
+
+# populate files with version strings
+echo "including src/.git_version, ceph.spec"
+
+# create .gitversion file
+(git rev-parse HEAD ; echo "v${version}") 2> /dev/null > src/.git_version
+
+# if the version has '-' in it, it has a 'release' part,
+# like vX.Y.Z-N-g<shortsha1>.  If it doesn't, it's just
+# vX.Y.Z.  Handle both, and translate - to . for rpm
+# naming rules (the - separates version and release).
+
+if expr index $version '-' > /dev/null; then
+	rpm_version=`echo $version | cut -d - -f 1-1`
+	rpm_release=`echo $version | cut -d - -f 2- | sed 's/-/./'`
+else
+	rpm_version=$version
+	rpm_release=0
+fi
+
+# starlingx use customization ceph.spec file. 
+# don't need to generate general spec file. 
+for spec in alpine/APKBUILD.in; do
+    cat $spec |
+        sed "s/@VERSION@/$rpm_version/g" |
+        sed "s/@RPM_RELEASE@/$rpm_release/g" |
+        sed "s/@TARBALL_BASENAME@/ceph-$version/g" > `echo $spec | sed 's/.in$//'`
+done
+ln -s . $outfile
+tar cvf $outfile.version.tar $outfile/src/.git_version $outfile/ceph.spec $outfile/alpine/APKBUILD
+# NOTE: If you change this version number make sure the package is available
+# at the three URLs referenced below (may involve uploading to download.ceph.com)
+boost_version=1.67.0
+download_boost $boost_version 2684c972994ee57fc5632e03bf044746f6eb45d4920c343937a465fd67a5adba \
+               https://dl.bintray.com/boostorg/release/$boost_version/source \
+               https://downloads.sourceforge.net/project/boost/boost/$boost_version \
+               https://download.ceph.com/qa
+
+echo "ceph-preparation done." 
+
