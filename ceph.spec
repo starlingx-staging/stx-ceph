@@ -157,6 +157,10 @@
 
 #################################################
 
+# StarlingX: Ceph takes long time to generate debuginfo package which is not used
+# so disable it here.
+%define debug_package %{nil}
+
 %bcond_with python3
 %bcond_without ocf
 %bcond_with make_check
