@@ -81,7 +81,7 @@
 #################################################################################
 Name:		ceph
 Version:	13.2.2
-Release:	0%{?dist}
+Release:	0.el7%{?_tis_dist}.%{tis_patch_ver}
 %if 0%{?fedora} || 0%{?rhel}
 Epoch:		2
 %endif
