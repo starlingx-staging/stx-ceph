@@ -1164,6 +1164,19 @@ mkdir -p %{buildroot}%{_localstatedir}/lib/ceph/bootstrap-rgw
 mkdir -p %{buildroot}%{_localstatedir}/lib/ceph/bootstrap-mgr
 mkdir -p %{buildroot}%{_localstatedir}/lib/ceph/bootstrap-rbd
 
+mkdir -p %{buildroot}%{_sysconfdir}/services.d/controller
+mkdir -p %{buildroot}%{_sysconfdir}/services.d/storage
+mkdir -p %{buildroot}%{_initrddir}
+mkdir -p %{buildroot}%{_sysconfdir}/ceph
+
+install -m 750 wrs/ceph.sh %{buildroot}%{_sysconfdir}/services.d/controller/
+install -m 750 wrs/ceph.sh %{buildroot}%{_sysconfdir}/services.d/storage/
+install -m 750 wrs/ceph-rest-api %{buildroot}%{_initrddir}/
+install -m 750 wrs/ceph.conf.pmon %{buildroot}%{_sysconfdir}/ceph/
+install -m 750 wrs/ceph_pmon_wrapper.sh %{buildroot}%{_sysconfdir}/ceph/
+install -m 755 wrs/ceph.conf %{buildroot}%{_sysconfdir}/ceph/
+install -m 700 wrs/ceph-manage-journal.py %{buildroot}/usr/sbin/ceph-manage-journal
+
 %if 0%{?suse_version}
 # create __pycache__ directories and their contents
 %py3_compile %{buildroot}%{python3_sitelib}
@@ -1184,8 +1197,14 @@ rm -rf %{buildroot}
 %{_bindir}/ceph-kvstore-tool
 %{_bindir}/ceph-run
 %{_bindir}/ceph-detect-init
+%{_initrddir}/ceph-rest-api
+%{_sysconfdir}/ceph/ceph.conf.pmon
+%{_sysconfdir}/ceph/ceph_pmon_wrapper.sh
+%{_sysconfdir}/ceph/ceph.conf
+%{_sysconfdir}/services.d/*
 %{_libexecdir}/systemd/system-preset/50-ceph.preset
 %{_sbindir}/ceph-create-keys
+%{_sbindir}/ceph-manage-journal
 %{_sbindir}/ceph-disk
 %dir %{_libexecdir}/ceph
 %{_libexecdir}/ceph/ceph_common.sh
@@ -1676,6 +1695,7 @@ fi
 %{_bindir}/ceph-objectstore-tool
 %{_bindir}/ceph-osdomap-tool
 %{_bindir}/ceph-osd
+%{_sbindir}/ceph-manage-journal
 %{_libexecdir}/ceph/ceph-osd-prestart.sh
 %{_sbindir}/ceph-volume
 %{_sbindir}/ceph-volume-systemd
