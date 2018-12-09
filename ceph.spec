@@ -1124,7 +1124,9 @@ install -m 0644 -D etc/sysconfig/ceph %{buildroot}%{_sysconfdir}/sysconfig/ceph
 %if 0%{?suse_version}
 install -m 0644 -D etc/sysconfig/ceph %{buildroot}%{_fillupdir}/sysconfig.%{name}
 %endif
+%if %{without tis}
 install -m 0644 -D systemd/ceph.tmpfiles.d %{buildroot}%{_tmpfilesdir}/ceph-common.conf
+%endif
 install -m 0644 -D systemd/50-ceph.preset %{buildroot}%{_libexecdir}/systemd/system-preset/50-ceph.preset
 mkdir -p %{buildroot}%{_sbindir}
 install -m 0644 -D src/logrotate.conf %{buildroot}%{_sysconfdir}/logrotate.d/ceph
@@ -1321,7 +1323,9 @@ fi
 %{_bindir}/rbd-replay-prep
 %endif
 %{_bindir}/ceph-post-file
+%if %{without tis}
 %{_tmpfilesdir}/ceph-common.conf
+%endif
 %{_mandir}/man8/ceph-authtool.8*
 %{_mandir}/man8/ceph-conf.8*
 %{_mandir}/man8/ceph-dencoder.8*
@@ -1391,7 +1395,9 @@ usermod -c "Ceph storage service" \
 exit 0
 
 %post common
+%if %{without tis}
 %tmpfiles_create %{_tmpfilesdir}/ceph-common.conf
+%endif
 
 %postun common
 # Package removal cleanup
