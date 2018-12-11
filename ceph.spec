@@ -1127,8 +1127,10 @@ install -m 0644 -D etc/sysconfig/ceph %{buildroot}%{_fillupdir}/sysconfig.%{name
 %if %{without tis}
 install -m 0644 -D systemd/ceph.tmpfiles.d %{buildroot}%{_tmpfilesdir}/ceph-common.conf
 %endif
-install -m 0644 -D systemd/50-ceph.preset %{buildroot}%{_libexecdir}/systemd/system-preset/50-ceph.preset
 mkdir -p %{buildroot}%{_sbindir}
+%if %{without tis}
+install -m 0644 -D systemd/50-ceph.preset %{buildroot}%{_libexecdir}/systemd/system-preset/50-ceph.preset
+%endif
 install -m 0644 -D src/logrotate.conf %{buildroot}%{_sysconfdir}/logrotate.d/ceph
 chmod 0644 %{buildroot}%{_docdir}/ceph/sample.ceph.conf
 install -m 0644 -D COPYING %{buildroot}%{_docdir}/ceph/COPYING
@@ -1145,8 +1147,9 @@ ln -sf %{_sbindir}/mount.ceph %{buildroot}/sbin/mount.ceph
 # udev rules
 install -m 0644 -D udev/50-rbd.rules %{buildroot}%{_udevrulesdir}/50-rbd.rules
 install -m 0640 -D udev/60-ceph-by-parttypeuuid.rules %{buildroot}%{_udevrulesdir}/60-ceph-by-parttypeuuid.rules
-# Exclude the ceph-osd.rules
-#install -m 0644 -D udev/95-ceph-osd.rules %{buildroot}%{_udevrulesdir}/95-ceph-osd.rules
+%if %{without tis}
+install -m 0644 -D udev/95-ceph-osd.rules %{buildroot}%{_udevrulesdir}/95-ceph-osd.rules
+%endif
 
 #set up placeholder directories
 mkdir -p %{buildroot}%{_sysconfdir}/ceph
@@ -1181,6 +1184,11 @@ install -m 644 wrs/ceph.service %{buildroot}%{_unitdir}/ceph.service
 install -m 644 wrs/ceph-rest-api.service %{buildroot}%{_unitdir}/ceph-rest-api.service
 install -m 644 wrs/ceph-radosgw.service %{buildroot}%{_unitdir}/ceph-radosgw.service
 
+install -m 750 src/init-ceph.in %{buildroot}%{_initrddir}/ceph
+install -m 750 src/init-radosgw %{buildroot}%{_initrddir}/ceph-radosgw
+install -m 750 src/init-rbdmap %{buildroot}%{_initrddir}/rbdmap
+install -d -m 750 %{buildroot}/var/log/radosgw
+
 %if 0%{?suse_version}
 # create __pycache__ directories and their contents
 %py3_compile %{buildroot}%{python3_sitelib}
@@ -1201,14 +1209,17 @@ rm -rf %{buildroot}
 %{_bindir}/ceph-kvstore-tool
 %{_bindir}/ceph-run
 %{_bindir}/ceph-detect-init
+%{_initrddir}/ceph
 %{_initrddir}/ceph-rest-api
 %{_sysconfdir}/ceph/ceph.conf.pmon
 %{_sysconfdir}/ceph/ceph_pmon_wrapper.sh
 %config(noreplace) %{_sysconfdir}/ceph/ceph.conf
 %{_sysconfdir}/services.d/*
-%{_libexecdir}/systemd/system-preset/50-ceph.preset
-%{_sbindir}/ceph-create-keys
 %{_sbindir}/ceph-manage-journal
+%if %{without tis}
+%{_libexecdir}/systemd/system-preset/50-ceph.preset
+%endif
+%{_sbindir}/ceph-create-keys
 %{_sbindir}/ceph-disk
 %dir %{_libexecdir}/ceph
 %{_libexecdir}/ceph/ceph_common.sh
@@ -1238,6 +1249,9 @@ rm -rf %{buildroot}
 %endif
 %{_unitdir}/ceph-disk@.service
 %{_unitdir}/ceph.target
+%{_unitdir}/ceph.service
+%{_unitdir}/ceph-rest-api.service
+%{_unitdir}/ceph-radosgw.service
 %if 0%{with python2}
 %{python_sitelib}/ceph_detect_init*
 %{python_sitelib}/ceph_disk*
@@ -1275,6 +1289,7 @@ rm -rf %{buildroot}
 %attr(750,ceph,ceph) %dir %{_localstatedir}/lib/ceph/bootstrap-mgr
 %attr(750,ceph,ceph) %dir %{_localstatedir}/lib/ceph/bootstrap-rbd
 
+%if %{without tis}
 %post base
 /sbin/ldconfig
 %if 0%{?suse_version}
@@ -1319,6 +1334,7 @@ if [ $FIRST_ARG -ge 1 ] ; then
     /usr/bin/systemctl try-restart ceph-disk@\*.service > /dev/null 2>&1 || :
   fi
 fi
+%endif
 
 %files common
 %dir %{_docdir}/ceph
@@ -1375,7 +1391,11 @@ fi
 %config %{_sysconfdir}/bash_completion.d/rbd
 %config %{_sysconfdir}/bash_completion.d/radosgw-admin
 %attr(640,root,root) %config(noreplace) %{_sysconfdir}/ceph/rbdmap
+%if %{with tis}
+%{_initrddir}/rbdmap
+%else
 %{_unitdir}/rbdmap.service
+%endif
 %if 0%{with python2}
 %{python_sitelib}/ceph_argparse.py*
 %{python_sitelib}/ceph_daemon.py*
@@ -1393,6 +1413,7 @@ fi
 %attr(750,ceph,ceph) %dir %{_localstatedir}/lib/ceph/
 
 %pre common
+%if %{without tis}
 CEPH_GROUP_ID=167
 CEPH_USER_ID=167
 %if 0%{?rhel} || 0%{?fedora}
@@ -1417,6 +1438,7 @@ usermod -c "Ceph storage service" \
         ceph
 %endif
 exit 0
+%endif
 
 %post common
 %if %{without tis}
@@ -1532,13 +1554,16 @@ fi
 %{_bindir}/ceph-mon
 %{_bindir}/ceph-monstore-tool
 %{_mandir}/man8/ceph-mon.8*
+%if %{without tis}
 %{_unitdir}/ceph-mon@.service
 %{_unitdir}/ceph-mon.target
-%{_unitdir}/ceph.service
-%{_unitdir}/ceph-rest-api.service
-%{_unitdir}/ceph-radosgw.service
+%else
+%exclude %{_unitdir}/ceph-mon@.service
+%exclude %{_unitdir}/ceph-mon.target
+%endif
 %attr(750,ceph,ceph) %dir %{_localstatedir}/lib/ceph/mon
 
+%if %{without tis}
 %post mon
 %if 0%{?suse_version}
 if [ $1 -eq 1 ] ; then
@@ -1547,10 +1572,10 @@ fi
 %endif
 %if 0%{?fedora} || 0%{?rhel}
 %systemd_post ceph-mon@\*.service ceph-mon.target
-%endif
 if [ $1 -eq 1 ] ; then
 /usr/bin/systemctl start ceph-mon.target >/dev/null 2>&1 || :
 fi
+%endif
 
 %preun mon
 %if 0%{?suse_version}
@@ -1580,6 +1605,7 @@ if [ $FIRST_ARG -ge 1 ] ; then
     /usr/bin/systemctl try-restart ceph-mon@\*.service > /dev/null 2>&1 || :
   fi
 fi
+%endif
 
 %files fuse
 %{_bindir}/ceph-fuse
@@ -1595,9 +1621,12 @@ fi
 %files -n rbd-mirror
 %{_bindir}/rbd-mirror
 %{_mandir}/man8/rbd-mirror.8*
+%if %{without tis}
 %{_unitdir}/ceph-rbd-mirror@.service
 %{_unitdir}/ceph-rbd-mirror.target
+%endif
 
+%if %{without tis}
 %post -n rbd-mirror
 %if 0%{?suse_version}
 if [ $1 -eq 1 ] ; then
@@ -1639,6 +1668,7 @@ if [ $FIRST_ARG -ge 1 ] ; then
     /usr/bin/systemctl try-restart ceph-rbd-mirror@\*.service > /dev/null 2>&1 || :
   fi
 fi
+%endif
 
 %files -n rbd-nbd
 %{_bindir}/rbd-nbd
@@ -1651,9 +1681,15 @@ fi
 %{_bindir}/radosgw-object-expirer
 %{_mandir}/man8/radosgw.8*
 %dir %{_localstatedir}/lib/ceph/radosgw
+%if %{with tis}
+%{_initrddir}/ceph-radosgw
+%dir /var/log/radosgw
+%else
 %{_unitdir}/ceph-radosgw@.service
 %{_unitdir}/ceph-radosgw.target
+%endif
 
+%if %{without tis}
 %post radosgw
 %if 0%{?suse_version}
 if [ $1 -eq 1 ] ; then
@@ -1695,6 +1731,7 @@ if [ $FIRST_ARG -ge 1 ] ; then
     /usr/bin/systemctl try-restart ceph-radosgw@\*.service > /dev/null 2>&1 || :
   fi
 fi
+%endif
 
 %files osd
 %{_bindir}/ceph-clsinfo
@@ -1708,8 +1745,9 @@ fi
 %{_sbindir}/ceph-volume-systemd
 %dir %{_udevrulesdir}
 %{_udevrulesdir}/60-ceph-by-parttypeuuid.rules
-# Exclude the ceph-osd.rules
-#%{_udevrulesdir}/95-ceph-osd.rules
+%if %{without tis}
+%{_udevrulesdir}/95-ceph-osd.rules
+%endif
 %{_mandir}/man8/ceph-clsinfo.8*
 %{_mandir}/man8/ceph-osd.8*
 %{_mandir}/man8/ceph-bluestore-tool.8*
@@ -1718,12 +1756,15 @@ fi
 %if 0%{?rhel} && ! 0%{?centos}
 %attr(0755,-,-) %{_sysconfdir}/cron.hourly/subman
 %endif
+%if %{without tis}
 %{_unitdir}/ceph-osd@.service
 %{_unitdir}/ceph-osd.target
 %{_unitdir}/ceph-volume@.service
+%endif
 %attr(750,ceph,ceph) %dir %{_localstatedir}/lib/ceph/osd
 %config(noreplace) %{_sysctldir}/90-ceph-osd.conf
 
+%if %{without tis}
 %post osd
 %if 0%{?suse_version}
 if [ $1 -eq 1 ] ; then
@@ -1772,6 +1813,7 @@ if [ $FIRST_ARG -ge 1 ] ; then
     /usr/bin/systemctl try-restart ceph-osd@\*.service ceph-volume@\*.service > /dev/null 2>&1 || :
   fi
 fi
+%endif
 
 %if %{with ocf}
 
@@ -1994,6 +2036,7 @@ fi
 %{_datadir}/selinux/devel/include/contrib/ceph.if
 %{_mandir}/man8/ceph_selinux.8*
 
+%if %{without tis}
 %post selinux
 # backup file_contexts before update
 . /etc/selinux/config
@@ -2077,6 +2120,7 @@ if [ $1 -eq 0 ]; then
     fi
 fi
 exit 0
+%endif
 
 %endif # with selinux
 
