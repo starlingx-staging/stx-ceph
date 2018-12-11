@@ -161,8 +161,10 @@
 # so disable it here.
 %define debug_package %{nil}
 
+%define optflags -O2
+
 %bcond_with python3
-%bcond_without ocf
+%bcond_with ocf
 %bcond_with make_check
 %ifarch s390 s390x
 %bcond_with tcmalloc
@@ -170,22 +172,28 @@
 %bcond_without tcmalloc
 %endif
 %if 0%{?fedora} || 0%{?rhel}
+%if %{without tis}
 %bcond_without selinux
+%endif
 %bcond_without ceph_test_package
+%if %{without tis}
 %bcond_without cephfs_java
 %bcond_without lttng
+%endif
 %bcond_without libradosstriper
 %global _remote_tarball_prefix https://download.ceph.com/tarballs/
 %endif
 %if 0%{?suse_version}
 %bcond_with selinux
 %bcond_with ceph_test_package
+%if %{without tis}
 %bcond_with cephfs_java
+%endif
 #Compat macro for new _fillupdir macro introduced in Nov 2017
 %if ! %{defined _fillupdir}
 %global _fillupdir /var/adm/fillup-templates
 %endif
-%if 0%{?is_opensuse}
+%if ! 0%{?is_opensuse} && %{without tis}
 %bcond_without lttng
 %bcond_without libradosstriper
 %else
@@ -1017,6 +1025,23 @@ done
 RPM_OPT_FLAGS="$RPM_OPT_FLAGS --param ggc-min-expand=20 --param ggc-min-heapsize=32768"
 %endif
 
+%if 0%{?rhel} && ! 0%{?centos}
+%bcond_without subman
+%endif
+%bcond_without nss
+%bcond_with cryptopp
+%if %{without tis}
+%bcond_without debug
+%bcond_without man_pages
+%endif
+%bcond_without radosgw
+%if %{without lttng}
+%bcond_with lttng
+%bcond_with babeltrace
+%endif
+
+%tis_check_config
+
 export CPPFLAGS="$java_inc"
 export CFLAGS="$RPM_OPT_FLAGS"
 export CXXFLAGS="$RPM_OPT_FLAGS"
@@ -1167,6 +1192,7 @@ mkdir -p %{buildroot}%{_localstatedir}/lib/ceph/bootstrap-rgw
 mkdir -p %{buildroot}%{_localstatedir}/lib/ceph/bootstrap-mgr
 mkdir -p %{buildroot}%{_localstatedir}/lib/ceph/bootstrap-rbd
 
+%if %{with tis}
 install -d -m 750 %{buildroot}%{_sysconfdir}/services.d/controller
 install -d -m 750 %{buildroot}%{_sysconfdir}/services.d/storage
 mkdir -p %{buildroot}%{_initrddir}
@@ -1188,6 +1214,7 @@ install -m 750 src/init-ceph.in %{buildroot}%{_initrddir}/ceph
 install -m 750 src/init-radosgw %{buildroot}%{_initrddir}/ceph-radosgw
 install -m 750 src/init-rbdmap %{buildroot}%{_initrddir}/rbdmap
 install -d -m 750 %{buildroot}/var/log/radosgw
+%endif
 
 %if 0%{?suse_version}
 # create __pycache__ directories and their contents
@@ -1209,6 +1236,7 @@ rm -rf %{buildroot}
 %{_bindir}/ceph-kvstore-tool
 %{_bindir}/ceph-run
 %{_bindir}/ceph-detect-init
+%if %{with tis}
 %{_initrddir}/ceph
 %{_initrddir}/ceph-rest-api
 %{_sysconfdir}/ceph/ceph.conf.pmon
@@ -1216,6 +1244,7 @@ rm -rf %{buildroot}
 %config(noreplace) %{_sysconfdir}/ceph/ceph.conf
 %{_sysconfdir}/services.d/*
 %{_sbindir}/ceph-manage-journal
+%endif
 %if %{without tis}
 %{_libexecdir}/systemd/system-preset/50-ceph.preset
 %endif
@@ -1249,9 +1278,11 @@ rm -rf %{buildroot}
 %endif
 %{_unitdir}/ceph-disk@.service
 %{_unitdir}/ceph.target
+%if %{with tis}
 %{_unitdir}/ceph.service
 %{_unitdir}/ceph-rest-api.service
 %{_unitdir}/ceph-radosgw.service
+%endif
 %if 0%{with python2}
 %{python_sitelib}/ceph_detect_init*
 %{python_sitelib}/ceph_disk*
@@ -1272,6 +1303,7 @@ rm -rf %{buildroot}
 %{python3_sitelib}/ceph_volume-*
 %endif
 %endif
+%if %{with man_pages}
 %{_mandir}/man8/ceph-deploy.8*
 %{_mandir}/man8/ceph-detect-init.8*
 %{_mandir}/man8/ceph-create-keys.8*
@@ -1281,6 +1313,7 @@ rm -rf %{buildroot}
 %{_mandir}/man8/osdmaptool.8*
 %{_mandir}/man8/monmaptool.8*
 %{_mandir}/man8/ceph-kvstore-tool.8*
+%endif
 #set up placeholder directories
 %attr(750,ceph,ceph) %dir %{_localstatedir}/lib/ceph/tmp
 %attr(750,ceph,ceph) %dir %{_localstatedir}/lib/ceph/bootstrap-osd
@@ -1355,7 +1388,9 @@ fi
 %{_bindir}/rbd-replay
 %{_bindir}/rbd-replay-many
 %{_bindir}/rbdmap
+%if %{with cephfs}
 %{_sbindir}/mount.ceph
+%endif
 %if 0%{?suse_version}
 /sbin/mount.ceph
 %endif
@@ -1366,6 +1401,7 @@ fi
 %if %{without tis}
 %{_tmpfilesdir}/ceph-common.conf
 %endif
+%if %{with man_pages}
 %{_mandir}/man8/ceph-authtool.8*
 %{_mandir}/man8/ceph-conf.8*
 %{_mandir}/man8/ceph-dencoder.8*
@@ -1381,6 +1417,7 @@ fi
 %{_mandir}/man8/rbd-replay.8*
 %{_mandir}/man8/rbd-replay-many.8*
 %{_mandir}/man8/rbd-replay-prep.8*
+%endif
 %dir %{_datadir}/ceph/
 %{_datadir}/ceph/known_hosts_drop.ceph.com
 %{_datadir}/ceph/id_rsa_drop.ceph.com
@@ -1454,7 +1491,9 @@ fi
 
 %files mds
 %{_bindir}/ceph-mds
+%if %{with man_pages}
 %{_mandir}/man8/ceph-mds.8*
+%endif
 %{_unitdir}/ceph-mds@.service
 %{_unitdir}/ceph-mds.target
 %attr(750,ceph,ceph) %dir %{_localstatedir}/lib/ceph/mds
@@ -1553,7 +1592,9 @@ fi
 %files mon
 %{_bindir}/ceph-mon
 %{_bindir}/ceph-monstore-tool
+%if %{with man_pages}
 %{_mandir}/man8/ceph-mon.8*
+%endif
 %if %{without tis}
 %{_unitdir}/ceph-mon@.service
 %{_unitdir}/ceph-mon.target
@@ -1607,20 +1648,30 @@ if [ $FIRST_ARG -ge 1 ] ; then
 fi
 %endif
 
+%if %{with fuse}
 %files fuse
 %{_bindir}/ceph-fuse
+%if %{with man_pages}
 %{_mandir}/man8/ceph-fuse.8*
+%endif
 %{_sbindir}/mount.fuse.ceph
 %{_unitdir}/ceph-fuse@.service
 %{_unitdir}/ceph-fuse.target
+%endif
 
+%if %{with fuse}
 %files -n rbd-fuse
 %{_bindir}/rbd-fuse
+%if %{with man_pages}
 %{_mandir}/man8/rbd-fuse.8*
+%endif
+%endif
 
 %files -n rbd-mirror
 %{_bindir}/rbd-mirror
+%if %{with man_pages}
 %{_mandir}/man8/rbd-mirror.8*
+%endif
 %if %{without tis}
 %{_unitdir}/ceph-rbd-mirror@.service
 %{_unitdir}/ceph-rbd-mirror.target
@@ -1672,14 +1723,18 @@ fi
 
 %files -n rbd-nbd
 %{_bindir}/rbd-nbd
+%if %{with man_pages}
 %{_mandir}/man8/rbd-nbd.8*
+%endif
 
 %files radosgw
 %{_bindir}/radosgw
 %{_bindir}/radosgw-token
 %{_bindir}/radosgw-es
 %{_bindir}/radosgw-object-expirer
+%if %{with man_pages}
 %{_mandir}/man8/radosgw.8*
+%endif
 %dir %{_localstatedir}/lib/ceph/radosgw
 %if %{with tis}
 %{_initrddir}/ceph-radosgw
@@ -1739,7 +1794,9 @@ fi
 %{_bindir}/ceph-objectstore-tool
 %{_bindir}/ceph-osdomap-tool
 %{_bindir}/ceph-osd
+%if %{with tis}
 %{_sbindir}/ceph-manage-journal
+%endif
 %{_libexecdir}/ceph/ceph-osd-prestart.sh
 %{_sbindir}/ceph-volume
 %{_sbindir}/ceph-volume-systemd
@@ -1748,11 +1805,13 @@ fi
 %if %{without tis}
 %{_udevrulesdir}/95-ceph-osd.rules
 %endif
+%if %{with man_pages}
 %{_mandir}/man8/ceph-clsinfo.8*
 %{_mandir}/man8/ceph-osd.8*
 %{_mandir}/man8/ceph-bluestore-tool.8*
 %{_mandir}/man8/ceph-volume.8*
 %{_mandir}/man8/ceph-volume-systemd.8*
+%endif
 %if 0%{?rhel} && ! 0%{?centos}
 %attr(0755,-,-) %{_sysconfdir}/cron.hourly/subman
 %endif
@@ -1854,7 +1913,9 @@ fi
 %{_libdir}/librados_tp.so
 %endif
 %{_bindir}/librados-config
+%if %{with man_pages}
 %{_mandir}/man8/librados-config.8*
+%endif
 
 %if 0%{with python2}
 %files -n python-rados
@@ -1944,24 +2005,30 @@ fi
 %{python3_sitearch}/rbd-*.egg-info
 %endif
 
+%if %{with cephfs}
 %files -n libcephfs2
 %{_libdir}/libcephfs.so.*
 
 %post -n libcephfs2 -p /sbin/ldconfig
 
 %postun -n libcephfs2 -p /sbin/ldconfig
+%endif
 
+%if %{with cephfs}
 %files -n libcephfs-devel
 %dir %{_includedir}/cephfs
 %{_includedir}/cephfs/libcephfs.h
 %{_includedir}/cephfs/ceph_statx.h
 %{_libdir}/libcephfs.so
+%endif
 
+%if %{with cephfs}
 %if 0%{with python2}
 %files -n python-cephfs
 %{python_sitearch}/cephfs.so
 %{python_sitearch}/cephfs-*.egg-info
 %{python_sitelib}/ceph_volume_client.py*
+%endif
 %endif
 
 %if 0%{with python3}
@@ -1983,6 +2050,7 @@ fi
 %endif
 
 %if 0%{with ceph_test_package}
+%if %{with debug}
 %files -n ceph-test
 %{_bindir}/ceph-client-debug
 %{_bindir}/ceph_bench_log
@@ -2005,9 +2073,20 @@ fi
 %{_bindir}/ceph_test_*
 %{_bindir}/ceph-coverage
 %{_bindir}/ceph-debugpack
+%if %{with man_pages}
 %{_mandir}/man8/ceph-debugpack.8*
+%endif
 %dir %{_libdir}/ceph
 %{_libdir}/ceph/ceph-monstore-update-crush.sh
+%else
+# instead of fixing installed but unpackaged files issue we're
+# packaging them even if debug build is not enabled
+%files -n ceph-test
+%defattr(-,root,root,-)
+%{_bindir}/ceph-coverage
+%{_bindir}/ceph-debugpack
+%{_libdir}/ceph/ceph-monstore-update-crush.sh
+%endif
 %endif
 
 %if 0%{with cephfs_java}
@@ -2034,7 +2113,9 @@ fi
 %files selinux
 %attr(0600,root,root) %{_datadir}/selinux/packages/ceph.pp
 %{_datadir}/selinux/devel/include/contrib/ceph.if
+%if %{with man_pages}
 %{_mandir}/man8/ceph_selinux.8*
+%endif
 
 %if %{without tis}
 %post selinux
