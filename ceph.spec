@@ -1207,7 +1207,7 @@ install -m 750 wrs/ceph.sh %{buildroot}%{_sysconfdir}/services.d/controller/
 install -m 750 wrs/ceph.sh %{buildroot}%{_sysconfdir}/services.d/storage/
 install -m 750 wrs/ceph-rest-api %{buildroot}%{_initrddir}/
 install -m 750 wrs/ceph.conf.pmon %{buildroot}%{_sysconfdir}/ceph/
-install -m 750 wrs/ceph_pmon_wrapper.sh %{buildroot}%{_sysconfdir}/ceph/
+install -m 750 wrs/ceph-init-wrapper.sh %{buildroot}%{_initrddir}/ceph-init-wrapper
 install -m 640 wrs/ceph.conf %{buildroot}%{_sysconfdir}/ceph/
 install -m 700 wrs/ceph-manage-journal.py %{buildroot}%{_sbindir}/ceph-manage-journal
 install -m 644 wrs/ceph.service %{buildroot}%{_unitdir}/ceph.service
@@ -1243,8 +1243,8 @@ rm -rf %{buildroot}
 %if %{with tis}
 %{_initrddir}/ceph
 %{_initrddir}/ceph-rest-api
+%{_initrddir}/ceph-init-wrapper
 %{_sysconfdir}/ceph/ceph.conf.pmon
-%{_sysconfdir}/ceph/ceph_pmon_wrapper.sh
 %config(noreplace) %{_sysconfdir}/ceph/ceph.conf
 %{_sysconfdir}/services.d/*
 %{_sbindir}/ceph-manage-journal
