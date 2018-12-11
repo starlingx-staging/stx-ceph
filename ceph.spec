@@ -1164,8 +1164,8 @@ mkdir -p %{buildroot}%{_localstatedir}/lib/ceph/bootstrap-rgw
 mkdir -p %{buildroot}%{_localstatedir}/lib/ceph/bootstrap-mgr
 mkdir -p %{buildroot}%{_localstatedir}/lib/ceph/bootstrap-rbd
 
-mkdir -p %{buildroot}%{_sysconfdir}/services.d/controller
-mkdir -p %{buildroot}%{_sysconfdir}/services.d/storage
+install -d -m 750 %{buildroot}%{_sysconfdir}/services.d/controller
+install -d -m 750 %{buildroot}%{_sysconfdir}/services.d/storage
 mkdir -p %{buildroot}%{_initrddir}
 mkdir -p %{buildroot}%{_sysconfdir}/ceph
 mkdir -p %{buildroot}%{_unitdir}
@@ -1175,7 +1175,7 @@ install -m 750 wrs/ceph.sh %{buildroot}%{_sysconfdir}/services.d/storage/
 install -m 750 wrs/ceph-rest-api %{buildroot}%{_initrddir}/
 install -m 750 wrs/ceph.conf.pmon %{buildroot}%{_sysconfdir}/ceph/
 install -m 750 wrs/ceph_pmon_wrapper.sh %{buildroot}%{_sysconfdir}/ceph/
-install -m 755 wrs/ceph.conf %{buildroot}%{_sysconfdir}/ceph/
+install -m 640 wrs/ceph.conf %{buildroot}%{_sysconfdir}/ceph/
 install -m 700 wrs/ceph-manage-journal.py %{buildroot}%{_sbindir}/ceph-manage-journal
 install -m 644 wrs/ceph.service %{buildroot}%{_unitdir}/ceph.service
 install -m 644 wrs/ceph-rest-api.service %{buildroot}%{_unitdir}/ceph-rest-api.service
@@ -1374,7 +1374,7 @@ fi
 %config %{_sysconfdir}/bash_completion.d/rados
 %config %{_sysconfdir}/bash_completion.d/rbd
 %config %{_sysconfdir}/bash_completion.d/radosgw-admin
-%config(noreplace) %{_sysconfdir}/ceph/rbdmap
+%attr(640,root,root) %config(noreplace) %{_sysconfdir}/ceph/rbdmap
 %{_unitdir}/rbdmap.service
 %if 0%{with python2}
 %{python_sitelib}/ceph_argparse.py*
