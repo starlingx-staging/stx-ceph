@@ -1281,7 +1281,6 @@ rm -rf %{buildroot}
 %config %{_sysconfdir}/sysconfig/SuSEfirewall2.d/services/ceph-mon
 %config %{_sysconfdir}/sysconfig/SuSEfirewall2.d/services/ceph-osd-mds
 %endif
-%{_unitdir}/ceph-disk@.service
 %{_unitdir}/ceph.target
 %if %{with tis}
 %{_unitdir}/ceph.service
@@ -1823,6 +1822,7 @@ fi
 %if %{without tis}
 %{_unitdir}/ceph-osd@.service
 %{_unitdir}/ceph-osd.target
+%{_unitdir}/ceph-disk@.service
 %{_unitdir}/ceph-volume@.service
 %endif
 %attr(750,ceph,ceph) %dir %{_localstatedir}/lib/ceph/osd
