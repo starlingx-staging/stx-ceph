@@ -884,7 +884,6 @@ file system.
 %endif
 
 %if 0%{with python3}
-%if 0%{with python2}
 %package -n python%{python3_pkgversion}-ceph-argparse
 Summary:	Python 3 utility libraries for Ceph CLI
 %if 0%{?suse_version}
@@ -895,7 +894,6 @@ This package contains types and routines for Python 3 used by the Ceph CLI as
 well as the RESTful interface. These have to do with querying the daemons for
 command-description information, validating user command input against those
 descriptions, and submitting the command to the appropriate daemon.
-%endif
 %endif
 
 %if 0%{with ceph_test_package}
@@ -2045,13 +2043,11 @@ fi
 %endif
 
 %if 0%{with python3}
-%if 0%{with python2}
 %files -n python%{python3_pkgversion}-ceph-argparse
 %{python3_sitelib}/ceph_argparse.py
 %{python3_sitelib}/__pycache__/ceph_argparse.cpython*.py*
 %{python3_sitelib}/ceph_daemon.py
 %{python3_sitelib}/__pycache__/ceph_daemon.cpython*.py*
-%endif
 %endif
 
 %if 0%{with ceph_test_package}
