@@ -227,7 +227,7 @@
 %global _python_buildid %{?_defined_if_python2_absent:%{python3_pkgversion}}
 
 # unify libexec for all targets
-%global _libexecdir %{_exec_prefix}/lib
+%global _libexecdir %{_libdir}
 
 # disable dwz which compresses the debuginfo
 %global _find_debuginfo_dwz_opts %{nil}
@@ -1080,6 +1080,7 @@ cmake .. \
     -DCMAKE_INSTALL_PREFIX=%{_prefix} \
     -DCMAKE_INSTALL_LIBDIR=%{_libdir} \
     -DCMAKE_INSTALL_LIBEXECDIR=%{_libexecdir} \
+    -DCMAKE_INSTALL_SYSTEMD_SERVICEDIR=%{_prefix}/lib/systemd/system \
     -DCMAKE_INSTALL_LOCALSTATEDIR=%{_localstatedir} \
     -DCMAKE_INSTALL_SYSCONFDIR=%{_sysconfdir} \
     -DCMAKE_INSTALL_MANDIR=%{_mandir} \
