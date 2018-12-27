@@ -190,7 +190,7 @@ function version_lt {
 }
 
 function ensure_decent_gcc_on_rh {
-    local old=$(gcc -dumpversion)
+    local old=$(gcc -dumpfullversion -dumpversion)
     local expected=5.1
     local dts_ver=$1
     if version_lt $old $expected; then
