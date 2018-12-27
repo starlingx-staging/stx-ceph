@@ -9,6 +9,6 @@ install(DIRECTORY
   ${CMAKE_CURRENT_SOURCE_DIR}
   DESTINATION ${CEPH_INSTALL_DATADIR}
   REGEX "CMakeLists.txt" EXCLUDE
-  REGEX "\\.gitignore" EXCLUDE
+  REGEX "\\.gitignore|influx" EXCLUDE
   REGEX "hello/.*" EXCLUDE
   REGEX "osd_perf_query/.*" EXCLUDE)
