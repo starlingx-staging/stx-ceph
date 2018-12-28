@@ -1000,6 +1000,7 @@ rm -rf %{buildroot}
 %{_sysconfdir}/ceph/ceph.conf.pmon
 %config(noreplace) %{_sysconfdir}/ceph/ceph.conf
 %{_sysconfdir}/services.d/*
+%{_sbindir}/osd-wait-status
 %{_sbindir}/ceph-manage-journal
 %endif
 %if %{without tis}
@@ -1461,6 +1462,7 @@ fi
 %{_sbindir}/ceph-disk
 %{_sbindir}/ceph-disk-udev
 %if %{with tis}
+%{_sbindir}/osd-wait-status
 %{_sbindir}/ceph-manage-journal
 %endif
 %{_libexecdir}/ceph/ceph-osd-prestart.sh
