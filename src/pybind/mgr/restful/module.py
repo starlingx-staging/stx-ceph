@@ -503,7 +503,11 @@ class Module(MgrModule):
         # Add more information
         for mon in mon_map_mons:
             mon['in_quorum'] = mon['rank'] in mon_status['quorum']
-            mon['server'] = self.get_metadata("mon", mon['name'])['hostname']
+            metadata = self.get_metadata("mon", mon['name'])
+            if metadata is None:
+                mon['server'] = '[UNKNOWN]'
+            else:
+                mon['server'] = metadata['hostname']
             mon['leader'] = mon['rank'] == mon_status['quorum'][0]
 
         return mon_map_mons
