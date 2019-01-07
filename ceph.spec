@@ -946,12 +946,14 @@ mkdir -p %{buildroot}%{_localstatedir}/lib/ceph/bootstrap-rgw
 %if %{with tis}
 install -d -m 750 %{buildroot}%{_sysconfdir}/services.d/controller
 install -d -m 750 %{buildroot}%{_sysconfdir}/services.d/storage
+install -d -m 750 %{buildroot}%{_sysconfdir}/services.d/worker
 mkdir -p %{buildroot}%{_initrddir}
 mkdir -p %{buildroot}%{_sysconfdir}/ceph
 mkdir -p %{buildroot}%{_unitdir}
 
 install -m 750 wrs/ceph.sh %{buildroot}%{_sysconfdir}/services.d/controller/
 install -m 750 wrs/ceph.sh %{buildroot}%{_sysconfdir}/services.d/storage/
+install -m 750 wrs/ceph.sh %{buildroot}%{_sysconfdir}/services.d/worker/
 install -m 750 wrs/ceph-rest-api %{buildroot}%{_initrddir}/
 install -m 750 wrs/ceph.conf.pmon %{buildroot}%{_sysconfdir}/ceph/
 install -m 750 wrs/ceph-init-wrapper.sh %{buildroot}/%{_initrddir}/ceph-init-wrapper
