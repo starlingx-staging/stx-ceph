@@ -1462,6 +1462,7 @@ fi
 %{_sbindir}/ceph-disk-udev
 %if %{with tis}
 %{_sbindir}/ceph-manage-journal
+%{_sbindir}/osd-wait-status
 %endif
 %{_libexecdir}/ceph/ceph-osd-prestart.sh
 %dir %{_udevrulesdir}
