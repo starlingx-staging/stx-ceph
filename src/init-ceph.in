@@ -97,6 +97,11 @@ WAIT_FOR_OSD_DOWN_CONFIRM=300   # even if OSD is down it may be flapping, wait f
 WAIT_FOR_MON_OPERATIONAL=60     # max wait for MON to go 'up' when in startup state
 WAIT_FOR_MON_DOWN_CONFIRM=300   # even if MON is down it may be flapping, wait for a while
 
+# Blocked Ops Detection (values in seconds)
+BLOCKED_OPS_DETECTION_ENABLED="true" # Enable/Disable detection
+BLOCKED_OPS_START_DETECTION=300      # Wait on OSD startup before handling blocked ops
+BLOCKED_OPS_RESTART_THRESH=480       # Restart OSD if blocked reqs are longer that this
+
 LOG_LEVEL=NORMAL  # DEBUG
 
 save_proc_state() {
@@ -365,6 +370,59 @@ is_process_hung() {
         wlog $name "WARN" "Unknown process type: $type"
      fi
    echo "false"
+}
+
+osd_has_blocked_ops() {
+    local name=$1
+
+    # Abort if we had previous errors with Ceph
+    if [ "$CEPH_FAILURE" = "true" ]; then
+        wlog $name "WARN" "Ceph cluster is marked as failed, aborting blocked ops check"
+        echo "false"; return
+    fi
+
+    # Cache Ceph Health for later use as calling Ceph takes time This is
+    # initially cached from the hang check but check and call again here if
+    # needed
+    if [ -z "$CEPH_HEALTH_DETAIL" ]; then
+        execute_ceph_cmd CEPH_HEALTH_DETAIL $name "ceph health detail | tail -n 50"
+        if [ $? -ne 0 ]; then
+            wlog $name "WARN" "Aborting blocked ops check"
+            echo "false"; return
+        fi
+    fi
+
+    # Ignore health check if OSDs are administratively down
+    # Note this can be done with: 'ceph osd set noup; ceph osd down <osd.id>'
+    $(echo "$CEPH_HEALTH_DETAIL" | grep -q "^noup.*set")
+    if [ $? -eq 0 ]; then
+        wlog $name "WARN" "Ceph 'noup' flag is set, aborting blocked ops check"
+        echo "false"; return
+    fi
+
+    # Multiple OSD processes may be running, so we only run 'ceph osd tree' once
+    # as it takes some time to execute. This is initially cached from the hang
+    # check but check and call again here if needed
+    if [ -z "$CEPH_OSD_TREE" ]; then
+        execute_ceph_cmd CEPH_OSD_TREE $name "ceph osd tree"
+        if [ $? -ne 0 ]; then
+            wlog $name "WARN" "Ceph cmd exec failed, aborting blocked ops check"
+            echo "false"; return
+        fi
+    fi
+
+    # Get osd status as 'up' or, for any other output, as 'down'
+    echo "$CEPH_OSD_TREE" | grep $name | grep -q "up"
+    if [ "$?" -eq 0 ]; then
+        # Look for and parse:'1 ops are blocked > 1048.58 sec on osd.1'
+        local blocked_time=$(echo "$CEPH_HEALTH_DETAIL" | grep $name | sed -rn 's/.*ops are blocked > ([[:digit:]]*).*/\1/p')
+        if [ $blocked_time -gt $BLOCKED_OPS_RESTART_THRESH ]; then
+            wlog $name "WARN" "Detected blocked operations for $blocked_time seconds"
+            echo "true"; return
+        else
+            echo "false"; return
+        fi
+    fi
 }
 
 ######################
@@ -674,10 +732,21 @@ for name in $what; do
 
     case "$command" in
 	start|onestart)
-            # Increase max_open_files, if the configuration calls for it.
-            get_conf max_open_files "32768" "max open files"
+	    # Increase max_open_files, if the configuration calls for it.
+	    get_conf max_open_files "32768" "max open files"
+	    # Remove stale admin socket
+	    [ -n "$asok" ] && rm -f $asok
 
-            # build final command
+	    # Wait for pending systemd core dumps
+	    deadline=$(( $(date '+%s') + 300 ))
+	    while [[ $(date '+%s') -lt "${deadline}" ]]; do
+	        systemd_coredump_pid=$(pgrep -f "systemd-coredump.*ceph-${type}")
+	        [[ -z "${systemd_coredump_pid}" ]] && break
+	        wlog $name "INFO" "systemd-coredump ceph-${type} in progress: pid ${systemd_coredump_pid}"
+	        sleep 1
+	    done
+
+	    # build final command
 	    wrap=""
 	    runmode=""
 	    runarg=""
@@ -790,7 +859,7 @@ for name in $what; do
 	    [ -n "$post_stop" ] && do_cmd "$post_stop"
 	    [ -n "$lockfile" ] && [ "$?" -eq 0 ] && rm -f $lockfile
 	    # flush journal to data disk in background
-	    if [ "$type" == "osd" ];then
+	    if [ "$type" = "osd" ];then
 	        $(/usr/bin/ceph-osd -i $id --flush-journal) &
 	    fi
 	    wlog $name "INFO" "Process stopped, setting state to $ST_STOPPED"
@@ -815,7 +884,25 @@ for name in $what; do
 		# exit codes from 150 to 199 are application specific, therefore we define one here
 		EXIT_STATUS=150
 		else
-		echo "$name: running."
+		# Wait a period of time prior to OSD start before restarting based on slow/blocked requests
+		if [ "$type" = "osd" ] && [ $BLOCKED_OPS_DETECTION_ENABLED = "true" ]; then
+		    up_time=$(get_proc_run_time $name)
+		    if [ $up_time -gt $BLOCKED_OPS_START_DETECTION ]; then
+		        has_blocked_ops=$(osd_has_blocked_ops $name)
+		        if [ "$has_blocked_ops" = "true" ]; then
+		            echo "$name: blocked ops."
+		            # based on http://refspecs.linuxbase.org/LSB_3.1.0/LSB-Core-generic/LSB-Core-generic/iniscrptact.html
+		            # exit codes from 150 to 199 are application specific, therefore we define one here
+		            EXIT_STATUS=151
+		        else
+		            echo "$name: running."
+		        fi
+		    else
+		        echo "$name: running."
+		    fi
+		else
+		    echo "$name: running."
+		fi
 		fi
 
 	    elif [ -e "$pid_file" ]; then
