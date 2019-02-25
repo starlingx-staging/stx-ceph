@@ -832,6 +832,38 @@ for name in $what; do
 		continue
 	    fi
 
+	    . /etc/platform/platform.conf
+	    if [ "${nodetype}" = "controller" ]; then
+		# StarlingX: Hook the transient services launched by systemd-run
+		# to allow for proper cleanup and orderly shutdown
+
+		# Set nullglob so wildcards will return empty string if no match
+		shopt -s nullglob
+
+		OSD_SERVICES=$(for svc in /run/systemd/system/ceph-osd*.service; do basename $svc; done | xargs echo)
+	    for d in /run/systemd/system/ceph-osd*.d; do
+	        cat <<EOF > $d/starlingx-overrides.conf
+[Unit]
+Before=docker.service
+After=sm-shutdown.service
+
+EOF
+	    done
+
+	    for d in /run/systemd/system/ceph-mon*.d; do
+	        cat <<EOF > $d/starlingx-overrides.conf
+[Unit]
+Before=docker.service
+After=sm-shutdown.service ${OSD_SERVICES}
+
+EOF
+	    done
+
+		shopt -u nullglob
+		systemctl daemon-reload
+
+	    fi
+
 	    [ -n "$post_start" ] && do_cmd "$post_start"
 	    [ -n "$lockfile" ] && [ "$?" -eq 0 ] && touch $lockfile
 	    ;;
