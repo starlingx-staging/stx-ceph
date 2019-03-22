@@ -353,7 +353,7 @@ is_process_hung() {
      elif [ "$type" = "mon" ]; then
         # Get monitor status info
         local mon_status=$UP
-        echo "$CEPH_HEALTH_DETAIL" | grep -q -e "^$name.*down"
+        echo "$CEPH_HEALTH_DETAIL" | grep -q -e "^[[:space:]]*$name.*down"
         if [ $? -eq 0 ]; then
             mon_status=$DOWN
         fi
