@@ -416,6 +416,7 @@ osd_has_blocked_ops() {
     if [ "$?" -eq 0 ]; then
         # Look for and parse:'1 ops are blocked > 1048.58 sec on osd.1'
         local blocked_time=$(echo "$CEPH_HEALTH_DETAIL" | grep $name | sed -rn 's/.*ops are blocked > ([[:digit:]]*).*/\1/p')
+        [[ "$blocked_time" == "" ]] && blocked_time=0
         if [ $blocked_time -gt $BLOCKED_OPS_RESTART_THRESH ]; then
             wlog $name "WARN" "Detected blocked operations for $blocked_time seconds"
             echo "true"; return
