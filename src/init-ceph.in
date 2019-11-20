@@ -102,6 +102,11 @@ BLOCKED_OPS_DETECTION_ENABLED="true" # Enable/Disable detection
 BLOCKED_OPS_START_DETECTION=300      # Wait on OSD startup before handling blocked ops
 BLOCKED_OPS_RESTART_THRESH=480       # Restart OSD if blocked reqs are longer that this
 
+# Stuck Peering Detection (values in seconds)
+STUCK_PEERING_DETECTION_ENABLED="true"  # Enable/Disable detection
+STUCK_PEERING_START_DETECTION=300       # Wait on OSD startup before handling stuck peering
+STUCK_PEERING_RESTART_THRESH=480        # Restart OSD if stuck peering is longer that this
+
 LOG_LEVEL=NORMAL  # DEBUG
 
 save_proc_state() {
@@ -423,6 +428,52 @@ osd_has_blocked_ops() {
         else
             echo "false"; return
         fi
+    fi
+}
+
+osd_has_stuck_peering() {
+    local name=$1
+    local id=$2
+
+    # Abort if we had previous errors with Ceph
+    if [ "$CEPH_FAILURE" = "true" ]; then
+        wlog $name "WARN" "Ceph cluster is marked as failed, aborting stuck peering check"
+        echo "false"; return
+    fi
+
+    # Cache Ceph Health for later use as calling Ceph takes time This is
+    # initially cached from the hang check but check and call again here if
+    # needed
+    if [ -z "$CEPH_HEALTH_DETAIL" ]; then
+        execute_ceph_cmd CEPH_HEALTH_DETAIL $name "ceph health detail"
+        if [ $? -ne 0 ]; then
+            wlog $name "WARN" "Aborting stuck peering check"
+            echo "false"; return
+        fi
+    fi
+
+    # Ignore health check if OSDs are administratively up
+    # Note this can be done with: 'ceph osd set nodown; /etc/init.d/ceph stop <osd.id>'
+    $(echo "$CEPH_HEALTH_DETAIL" | grep -q "nodown.*set")
+    if [ $? -eq 0 ]; then
+        wlog $name "WARN" "Ceph 'nodown' flag is set, aborting stuck peering check"
+        echo "false"; return
+    fi
+
+    $(echo "$CEPH_HEALTH_DETAIL" | grep "stuck peering" | awk '{split($0,a,"acting"); print a[2]}' | grep -q $id)
+    if [ "$?" -eq 0 ]; then
+        while read -r line; do
+	    $(echo $line | awk '{split($0,a,"acting"); print a[2]}' | grep -q $id)
+            [ $? -eq 0 ] || continue
+            # Look for and parse:'pg 1.3b is stuck peering for 69.893513, current state peering, last acting [1,0]'
+            local blocked_time=$(echo "$line" | sed -rn 's/.*stuck peering for ([[:digit:]]*).*/\1/p')
+            if [ $blocked_time -gt $STUCK_PEERING_RESTART_THRESH ]; then
+                wlog $name "WARN" "Detected stuck peering for $blocked_time seconds"
+                echo "true"; return
+            else
+                echo "false"; return
+            fi
+        done <<< "$(echo "$CEPH_HEALTH_DETAIL" | grep "stuck peering")"
     fi
 }
 
@@ -937,6 +988,26 @@ EOF
 		else
 		    echo "$name: running."
 		fi
+
+                # Wait a period of time prior to OSD start before restarting based on stuck peering
+                if [ "$type" = "osd" ] && [ $STUCK_PEERING_DETECTION_ENABLED = "true" ]; then
+                    up_time=$(get_proc_run_time $name)
+                    if [ $up_time -gt $STUCK_PEERING_START_DETECTION ]; then
+                        has_stuck_peering=$(osd_has_stuck_peering $name $id)
+                        if [ "$has_stuck_peering" = "true" ]; then
+                            echo "$name: stuck peering."
+                            # based on http://refspecs.linuxbase.org/LSB_3.1.0/LSB-Core-generic/LSB-Core-generic/iniscrptact.html
+                            # exit codes from 150 to 199 are application specific, therefore we define one here
+                            EXIT_STATUS=152
+                        else
+                            echo "$name: running."
+                        fi
+                    else
+                        echo "$name: running."
+                    fi
+                else
+                    echo "$name: running."
+                fi
 		fi
 
 	    elif [ -e "$pid_file" ]; then
