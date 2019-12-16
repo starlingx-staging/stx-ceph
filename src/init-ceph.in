@@ -310,7 +310,7 @@ is_process_hung() {
 
     # Cache Ceph Health for later use as calling Ceph takes time
     if [ -z "$CEPH_HEALTH_DETAIL" ]; then
-        execute_ceph_cmd CEPH_HEALTH_DETAIL $name "ceph health detail | tail -n 50"
+        execute_ceph_cmd CEPH_HEALTH_DETAIL $name "ceph health detail"
         if [ $? -ne 0 ]; then
             wlog $name "WARN" "Aborting hang check"
             echo "false"; return
@@ -321,7 +321,7 @@ is_process_hung() {
     if [ "$type" = "osd" ]; then
         # Ignore health check if OSDs are administratively down
         # Note this can be done with: 'ceph osd set noup; ceph osd down <osd.id>'
-        $(echo "$CEPH_HEALTH_DETAIL" | grep -q "^noup.*set")
+        $(echo "$CEPH_HEALTH_DETAIL" | grep -q "noup.*set")
         if [ $? -eq 0 ]; then
            wlog $name "WARN" "Ceph 'noup' flag is set, aborting hang check"
            echo "false"; return
@@ -390,7 +390,7 @@ osd_has_blocked_ops() {
     # initially cached from the hang check but check and call again here if
     # needed
     if [ -z "$CEPH_HEALTH_DETAIL" ]; then
-        execute_ceph_cmd CEPH_HEALTH_DETAIL $name "ceph health detail | tail -n 50"
+        execute_ceph_cmd CEPH_HEALTH_DETAIL $name "ceph health detail"
         if [ $? -ne 0 ]; then
             wlog $name "WARN" "Aborting blocked ops check"
             echo "false"; return
@@ -399,7 +399,7 @@ osd_has_blocked_ops() {
 
     # Ignore health check if OSDs are administratively down
     # Note this can be done with: 'ceph osd set noup; ceph osd down <osd.id>'
-    $(echo "$CEPH_HEALTH_DETAIL" | grep -q "^noup.*set")
+    $(echo "$CEPH_HEALTH_DETAIL" | grep -q "noup.*set")
     if [ $? -eq 0 ]; then
         wlog $name "WARN" "Ceph 'noup' flag is set, aborting blocked ops check"
         echo "false"; return
