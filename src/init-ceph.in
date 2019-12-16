@@ -105,7 +105,7 @@ BLOCKED_OPS_RESTART_THRESH=480       # Restart OSD if blocked reqs are longer th
 # Stuck Peering Detection (values in seconds)
 STUCK_PEERING_DETECTION_ENABLED="true"  # Enable/Disable detection
 STUCK_PEERING_START_DETECTION=300       # Wait on OSD startup before handling stuck peering
-STUCK_PEERING_RESTART_THRESH=480        # Restart OSD if stuck peering is longer that this
+STUCK_PEERING_RESTART_THRESH=180        # Restart OSD if stuck peering is longer that this
 
 LOG_LEVEL=NORMAL  # DEBUG
 
@@ -460,21 +460,52 @@ osd_has_stuck_peering() {
         echo "false"; return
     fi
 
+
+    file="${DATA_PATH}/.${name}_stuck_peering_start"
+    max_blocked_time=0
+
     $(echo "$CEPH_HEALTH_DETAIL" | grep "stuck peering" | awk '{split($0,a,"acting"); print a[2]}' | grep -q $id)
     if [ "$?" -eq 0 ]; then
         while read -r line; do
-	    $(echo $line | awk '{split($0,a,"acting"); print a[2]}' | grep -q $id)
+            $(echo $line | awk '{split($0,a,"acting"); print a[2]}' | grep -q $id)
             [ $? -eq 0 ] || continue
             # Look for and parse:'pg 1.3b is stuck peering for 69.893513, current state peering, last acting [1,0]'
             local blocked_time=$(echo "$line" | sed -rn 's/.*stuck peering for ([[:digit:]]*).*/\1/p')
+            if [ $blocked_time -gt $max_blocked_time ]; then
+                max_blocked_time="$blocked_time"
+            fi
+        done <<< "$(echo "$CEPH_HEALTH_DETAIL" | grep "stuck peering")"
+    fi
+
+
+    if [ $max_blocked_time -gt 0 ]; then
+        if [ -f ${file} ]; then
+            # check against old time
+            first_blocked_time=$(cat ${file})
+            blocked_time=$((max_blocked_time - first_blocked_time))
+
+            # if stuck peering time restarted between status commands
+            # then allow it
+            if [ $blocked_time -lt 0 ]; then
+                blocked_time=$max_blocked_time
+                echo $max_blocked_time > ${file}
+            fi
+
             if [ $blocked_time -gt $STUCK_PEERING_RESTART_THRESH ]; then
                 wlog $name "WARN" "Detected stuck peering for $blocked_time seconds"
                 echo "true"; return
             else
                 echo "false"; return
             fi
-        done <<< "$(echo "$CEPH_HEALTH_DETAIL" | grep "stuck peering")"
+        else
+            # register the time for first detected stuck peering
+            echo $max_blocked_time > ${file}
+        fi
+    else
+        rm -f ${file} 2>/dev/null
     fi
+
+
 }
 
 ######################
