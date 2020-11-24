@@ -740,6 +740,27 @@ if [ "$command" = "stop" -o "$command" = "onestop" ]; then
     what="$new_order"
 fi
 
+# Check if the monitors are up before starting any mds
+# This is needed only for Standard deployments
+
+. /etc/platform/platform.conf
+
+if [ "$system_type" == "Standard" ]; then
+    CEPH_STATUS=''
+    execute_ceph_cmd CEPH_STATUS "ceph status" "ceph -s"
+    if [ "$?" -ne 0 ]; then
+        what_out=
+        for name in $what; do
+            type=$(echo $name | cut -c 1-3)
+            if [ "$type" == "mds" ]; then
+                continue
+            fi
+            what_out+=" $name"
+        done
+        what=$what_out
+    fi
+fi
+
 for name in $what; do
     type=`echo $name | cut -c 1-3`   # e.g. 'mon', if $item is 'mon1'
     id=`echo $name | cut -c 4- | sed 's/^\\.//'`
