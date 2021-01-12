@@ -3547,6 +3547,35 @@ def mount_activate(
 
     path = mount(dev=dev, fstype=fstype, options=mount_options)
 
+    LOG.warning('Detected filesystem type %s\n' % fstype)
+
+    try:
+        if fstype == 'xfs':
+            unmount(path)
+
+            LOG.warning('Check if %s should be repaired\n' % dev)
+            out, err, ret = command(['xfs_repair', '-n', '-v', dev])
+            LOG.warning('xfs_repair -n -v %s returned code %s\n' % (dev, str(ret)))
+            LOG.warning('xfs_repair -n -v %s output\n%s\n' % (dev, out))
+            LOG.warning('xfs_repair -n -v %s error\n%s\n' % (dev, err))
+
+            if ret > 0:
+                LOG.warning('Running xfs_repair -d -v %s.\n' % dev)
+                out, err, ret = command(['xfs_repair', '-d', '-v', dev])
+
+                LOG.warning('xfs_repair -d -v %s returned code %s\n' % (dev, str(ret)))
+                LOG.warning('xfs_repair -d -v output\n%s\n' % (dev, out))
+                LOG.warning('xfs_repair -d -v error\n%s\n' % (dev, err))
+
+                path = mount(dev=dev, fstype=fstype, options=mount_options)
+    except Exception as e:
+        LOG.error("Repairing xfs failed: %s" % str(e))
+        try:
+            unmount(path)
+        except:
+            pass
+        path = mount(dev=dev, fstype=fstype, options=mount_options)
+
     # check if the disk is deactive, change the journal owner, group
     # mode for correct user and group.
     if os.path.exists(os.path.join(path, 'deactive')):
