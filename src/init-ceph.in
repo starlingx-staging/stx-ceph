@@ -866,6 +866,14 @@ for name in $what; do
 
 	    [ -n "$TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES" ] && tcmalloc="TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES=$TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES"
 
+		# StarlingX: start processes in scope under slice system-ceph.slice
+		# so that ceph processes do not start under this script's callers cgroup
+		if [ "$type" = "osd" ]; then
+			cmd="systemd-run --scope --unit=ceph-${type}-${id} --slice=system-ceph $cmd"
+		else
+			cmd="systemd-run --scope --unit=ceph-${type} --slice=system-ceph $cmd"
+		fi
+
 	    # StarlingX: not running as ceph user/group
 	    cmd="$files $tcmalloc $wrap $cmd --cluster $cluster $runmode"
 
