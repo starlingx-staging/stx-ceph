@@ -1021,6 +1021,18 @@ EOF
 		# ceph processes answer in around 100ms when the process works correctly
 		do_cmd "timeout 1 $BINDIR/ceph --admin-daemon $asok version 2>/dev/null || echo unknown"
 
+        	# log ceph osd state
+		if [ "$type" = "osd" ];then
+		    CEPH_DAEMON_STATUS=""
+		    execute_ceph_cmd CEPH_DAEMON_STATUS $name "ceph daemon $name status"
+		    if [ $? -eq 0 ]; then
+		        state=$(echo "$CEPH_DAEMON_STATUS" | awk -F ':' '/state/{gsub(/[,[:space:]]/, "", $2);print $2}')
+		        if [ "$state" != "active" ]; then
+			    wlog $name "INFO" "$name has the following state: $state"
+			fi
+		    fi
+		fi
+
 		# check if daemon is hung
 		is_hung=$(is_process_hung $name $type)
 		if [ "$is_hung" = "true" ]; then
