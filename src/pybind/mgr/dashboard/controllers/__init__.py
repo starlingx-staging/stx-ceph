@@ -71,7 +71,7 @@ def load_controllers():
     for mod_name in mods:
         mod = importlib.import_module('.controllers.{}'.format(mod_name),
                                       package='dashboard')
-        for _, cls in mod.__dict__.items():
+        for _, cls in list(mod.__dict__.items()):
             # Controllers MUST be derived from the class BaseController.
             if inspect.isclass(cls) and issubclass(cls, BaseController) and \
                     hasattr(cls, '_cp_controller_'):
@@ -248,7 +248,7 @@ def browsable_api_view(meth):
             breadcrump=mk_breadcrump(['api', self._cp_path_] + list(vpath)),
             status_code=cherrypy.response.status,
             reponse_headers='\n'.join(
-                '{}: {}'.format(k, v) for k, v in cherrypy.response.headers.items()),
+                '{}: {}'.format(k, v) for k, v in list(cherrypy.response.headers.items())),
             data=data,
             create_form=create_form
         )
@@ -296,7 +296,7 @@ class Task(object):
         def wrapper(*args, **kwargs):
             arg_map = self._gen_arg_map(func, args, kwargs)
             md = {}
-            for k, v in self.metadata.items():
+            for k, v in list(self.metadata.items()):
                 if isinstance(v, str) and v and v[0] == '{' and v[-1] == '}':
                     param = v[1:-1]
                     try:
@@ -332,7 +332,7 @@ class BaseControllerMeta(type):
     def __new__(mcs, name, bases, dct):
         new_cls = type.__new__(mcs, name, bases, dct)
 
-        for a_name, thing in new_cls.__dict__.items():
+        for a_name, thing in list(new_cls.__dict__.items()):
             if isinstance(thing, (types.FunctionType, types.MethodType))\
                     and getattr(thing, 'exposed', False):
 
@@ -358,7 +358,7 @@ class BaseController(object):
         # pylint: disable=deprecated-method
         if sys.version_info > (3, 0):  # pylint: disable=no-else-return
             sig = inspect.signature(func)
-            cargs = [k for k, v in sig.parameters.items()
+            cargs = [k for k, v in list(sig.parameters.items())
                      if k != 'self' and v.default is inspect.Parameter.empty and
                      (v.kind == inspect.Parameter.POSITIONAL_ONLY or
                       v.kind == inspect.Parameter.POSITIONAL_OR_KEYWORD)]
@@ -454,14 +454,14 @@ class RESTController(BaseController):
                 result.append(([], attr, attr, cls._parse_function_args(val)))
 
         methods = []
-        for k, v in cls._method_mapping.items():
+        for k, v in list(cls._method_mapping.items()):
             if not k[1] and hasattr(cls, v[0]):
                 methods.append(k[0])
         if methods:
             result.append((methods, None, '_collection', []))
         methods = []
         args = []
-        for k, v in cls._method_mapping.items():
+        for k, v in list(cls._method_mapping.items()):
             if k[1] and hasattr(cls, v[0]):
                 methods.append(k[0])
                 if not args:
@@ -545,7 +545,7 @@ class RESTController(BaseController):
                 raise cherrypy.HTTPError(400, 'Failed to decode JSON: {}'
                                          .format(str(e)))
 
-            kwargs.update(data.items())
+            kwargs.update(list(data.items()))
             return func(*args, **kwargs)
         return inner
 

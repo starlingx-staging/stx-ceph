@@ -734,7 +734,7 @@ class MgrModule(ceph_module.BaseMgrModule):
                 schema = schema[svc_full_name]
 
                 # Populate latest values
-                for counter_path, counter_schema in schema.items():
+                for counter_path, counter_schema in list(schema.items()):
                     # self.log.debug("{0}: {1}".format(
                     #     counter_path, json.dumps(counter_schema)
                     # ))

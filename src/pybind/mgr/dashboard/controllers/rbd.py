@@ -63,7 +63,7 @@ def _format_bitmask(features):
     >>> _format_bitmask(45)
     ['deep-flatten', 'exclusive-lock', 'layering', 'object-map']
     """
-    names = [val for key, val in RBD_FEATURES_NAME_MAPPING.items()
+    names = [val for key, val in list(RBD_FEATURES_NAME_MAPPING.items())
              if key & features == key]
     return sorted(names)
 
@@ -85,7 +85,7 @@ def _format_features(features):
         return None
 
     res = 0
-    for key, value in RBD_FEATURES_NAME_MAPPING.items():
+    for key, value in list(RBD_FEATURES_NAME_MAPPING.items()):
         if value in features:
             res = key | res
     return res
@@ -212,7 +212,7 @@ class Rbd(RESTController):
                 total_prov_bytes, snaps_prov_bytes = self._rbd_disk_usage(
                     img, snaps, True)
                 stat['total_disk_usage'] = total_prov_bytes
-                for snap, prov_bytes in snaps_prov_bytes.items():
+                for snap, prov_bytes in list(snaps_prov_bytes.items()):
                     if snap is None:
                         stat['disk_usage'] = prov_bytes
                         continue

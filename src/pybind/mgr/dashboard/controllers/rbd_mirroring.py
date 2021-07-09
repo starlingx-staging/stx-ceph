@@ -19,7 +19,7 @@ from ..tools import ViewCache
 def get_daemons_and_pools():  # pylint: disable=R0915
     def get_daemons():
         daemons = []
-        for hostname, server in CephService.get_service_map('rbd-mirror').items():
+        for hostname, server in list(CephService.get_service_map('rbd-mirror').items()):
             for service in server['services']:
                 id = service['id']  # pylint: disable=W0622
                 metadata = service['metadata']
@@ -56,16 +56,16 @@ def get_daemons_and_pools():  # pylint: disable=R0915
             'health_color': 'info',
             'health': 'Unknown'
         }
-        for _, pool_data in daemon['status'].items():
+        for _, pool_data in list(daemon['status'].items()):
             if (health['health'] != 'error' and
-                    [k for k, v in pool_data.get('callouts', {}).items()
+                    [k for k, v in list(pool_data.get('callouts', {}).items())
                      if v['level'] == 'error']):
                 health = {
                     'health_color': 'error',
                     'health': 'Error'
                 }
             elif (health['health'] != 'error' and
-                  [k for k, v in pool_data.get('callouts', {}).items()
+                  [k for k, v in list(pool_data.get('callouts', {}).items())
                    if v['level'] == 'warning']):
                 health = {
                     'health_color': 'warning',
@@ -112,7 +112,7 @@ def get_daemons_and_pools():  # pylint: disable=R0915
             })
 
         for daemon in daemons:
-            for _, pool_data in daemon['status'].items():
+            for _, pool_data in list(daemon['status'].items()):
                 stats = pool_stats.get(pool_data['name'], None)
                 if stats is None:
                     continue
@@ -135,7 +135,7 @@ def get_daemons_and_pools():  # pylint: disable=R0915
                     stats['health_color'] = 'success'
                     stats['health'] = 'OK'
 
-        for _, stats in pool_stats.items():
+        for _, stats in list(pool_stats.items()):
             if stats.get('health', None) is None:
                 # daemon doesn't know about pool
                 stats['health_color'] = 'error'

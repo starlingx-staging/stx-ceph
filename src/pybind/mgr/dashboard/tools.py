@@ -571,7 +571,7 @@ class Task(object):
         self.lock = threading.Lock()
 
     def __hash__(self):
-        return hash((self.name, tuple(sorted(self.metadata.items()))))
+        return hash((self.name, tuple(sorted(list(self.metadata.items())))))
 
     def __eq__(self, other):
         return self.name == self.name and self.metadata == self.metadata

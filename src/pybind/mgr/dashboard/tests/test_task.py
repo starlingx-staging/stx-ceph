@@ -285,13 +285,13 @@ class TaskTest(unittest.TestCase):
             self.fail("Failed to serialize finished tasks: {}".format(str(ex)))
 
         # validate executing tasks attributes
-        self.assertEqual(len(ex_t[0].keys()), 4)
+        self.assertEqual(len(list(ex_t[0].keys())), 4)
         self.assertEqual(ex_t[0]['name'], 'test8/task1')
         self.assertEqual(ex_t[0]['metadata'], task1.metadata())
         self.assertIsNotNone(ex_t[0]['begin_time'])
         self.assertEqual(ex_t[0]['progress'], 20)
         # validate finished tasks attributes
-        self.assertEqual(len(fn_t[0].keys()), 9)
+        self.assertEqual(len(list(fn_t[0].keys())), 9)
         self.assertEqual(fn_t[0]['name'], 'test8/task2')
         self.assertEqual(fn_t[0]['metadata'], task2.metadata())
         self.assertIsNotNone(fn_t[0]['begin_time'])
@@ -381,7 +381,7 @@ class TaskTest(unittest.TestCase):
         except TypeError as ex:
             self.fail("Failed to serialize finished tasks: {}".format(str(ex)))
 
-        self.assertEqual(len(fn_t[0].keys()), 9)
+        self.assertEqual(len(list(fn_t[0].keys())), 9)
         self.assertEqual(fn_t[0]['name'], 'test14/task1')
         self.assertEqual(fn_t[0]['metadata'], task1.metadata())
         self.assertIsNotNone(fn_t[0]['begin_time'])
@@ -407,7 +407,7 @@ class TaskTest(unittest.TestCase):
         except TypeError as ex:
             self.fail("Failed to serialize finished tasks: {}".format(str(ex)))
 
-        self.assertEqual(len(fn_t[0].keys()), 9)
+        self.assertEqual(len(list(fn_t[0].keys())), 9)
         self.assertEqual(fn_t[0]['name'], 'test15/task1')
         self.assertEqual(fn_t[0]['metadata'], task1.metadata())
         self.assertIsNotNone(fn_t[0]['begin_time'])

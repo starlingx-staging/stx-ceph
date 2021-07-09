@@ -113,7 +113,7 @@ class Module(MgrModule):
             if not metadata:
                 continue
 
-            for path, counter_info in counters.items():
+            for path, counter_info in list(counters.items()):
                 if counter_info['type'] & self.PERFCOUNTER_HISTOGRAM:
                     continue
 
@@ -202,7 +202,7 @@ class Module(MgrModule):
                 stats['num_pgs_scrubbing'] += state['count']
 
         data = list()
-        for key, value in stats.items():
+        for key, value in list(stats.items()):
             data.append({
                 'measurement': 'ceph_cluster_stats',
                 'tags': {
@@ -215,7 +215,7 @@ class Module(MgrModule):
         return data
 
     def set_config_option(self, option, value):
-        if option not in self.config_keys.keys():
+        if option not in list(self.config_keys.keys()):
             raise RuntimeError('{0} is a unknown configuration '
                                'option'.format(option))
 

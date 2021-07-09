@@ -90,7 +90,7 @@ class CephFS(BaseController):
             if filesystem_id is not None and fs['id'] != filesystem_id:
                 continue
             names.extend([info['name']
-                          for _, info in fs['mdsmap']['info'].items()])
+                          for _, info in list(fs['mdsmap']['info'].items())])
 
         if filesystem_id is None:
             names.extend(info['name'] for info in fsmap['standbys'])
@@ -179,7 +179,7 @@ class CephFS(BaseController):
 
         # Find the standby replays
         # pylint: disable=unused-variable
-        for gid_str, daemon_info in mdsmap['info'].items():
+        for gid_str, daemon_info in list(mdsmap['info'].items()):
             if daemon_info['state'] != "up:standby-replay":
                 continue
 

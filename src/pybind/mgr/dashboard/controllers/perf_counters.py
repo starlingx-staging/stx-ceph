@@ -14,7 +14,7 @@ class PerfCounter(RESTController):
         schema = schema_dict["{}.{}".format(self.service_type, service_id)]
         counters = []
 
-        for key, value in sorted(schema.items()):
+        for key, value in sorted(list(schema.items())):
             counter = dict()
             counter['name'] = str(key)
             counter['description'] = value['description']

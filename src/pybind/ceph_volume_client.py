@@ -323,7 +323,7 @@ class CephFSVolumeClient(object):
         """
         remove_volumes = []
 
-        for volume, volume_data in auth_meta['volumes'].items():
+        for volume, volume_data in list(auth_meta['volumes'].items()):
             if not volume_data['dirty']:
                 continue
 
@@ -394,7 +394,7 @@ class CephFSVolumeClient(object):
 
         mds_map = self.get_mds_map()
         up = {}
-        for name, gid in mds_map['up'].items():
+        for name, gid in list(mds_map['up'].items()):
             # Quirk of the MDSMap JSON dump: keys in the up dict are like "mds_0"
             assert name.startswith("mds_")
             up[int(name[4:])] = gid
@@ -403,7 +403,7 @@ class CephFSVolumeClient(object):
         # Do the parallelism in python instead of using "tell mds.*", because
         # the latter doesn't give us per-mds output
         threads = []
-        for rank, gid in up.items():
+        for rank, gid in list(up.items()):
             thread = RankEvicter(self, client_spec, rank, gid, mds_map,
                                  timeout)
             thread.start()
@@ -1296,7 +1296,7 @@ class CephFSVolumeClient(object):
             if not meta or not meta['auths']:
                 return None
 
-            for auth, auth_data in meta['auths'].items():
+            for auth, auth_data in list(meta['auths'].items()):
                 # Skip partial auth updates.
                 if not auth_data['dirty']:
                     auths.append((auth, auth_data['access_level']))

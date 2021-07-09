@@ -632,7 +632,7 @@ class argdesc(object):
     def __repr__(self):
         r = 'argdesc(' + str(self.t) + ', '
         internals = ['N', 'typeargs', 'instance', 't']
-        for (k, v) in self.__dict__.items():
+        for (k, v) in list(self.__dict__.items()):
             if k.startswith('__') or k in internals:
                 pass
             else:
@@ -640,7 +640,7 @@ class argdesc(object):
                 if k == 'n' and self.N:
                     v = 'N'
                 r += '{0}={1}, '.format(k, v)
-        for (k, v) in self.typeargs.items():
+        for (k, v) in list(self.typeargs.items()):
             r += '{0}={1}, '.format(k, v)
         return r[:-2] + ')'
 
@@ -728,7 +728,7 @@ def parse_funcsig(sig):
                 raise JsonFormat(s)
 
         kwargs = dict()
-        for key, val in desc.items():
+        for key, val in list(desc.items()):
             if key not in ['type', 'name', 'n', 'req']:
                 kwargs[key] = val
         newsig.append(argdesc(t,
@@ -776,7 +776,7 @@ def parse_json_funcsigs(s, consumer):
         print("Couldn't parse JSON {0}: {1}".format(s, e), file=sys.stderr)
         raise e
     sigdict = {}
-    for cmdtag, cmd in overall.items():
+    for cmdtag, cmd in list(overall.items()):
         if 'sig' not in cmd:
             s = "JSON descriptor {0} has no 'sig'".format(cmdtag)
             raise JsonFormat(s)
@@ -1008,9 +1008,9 @@ def validate(args, signature, flags=0, partial=False):
 
 
 def cmdsiglen(sig):
-    sigdict = sig.values()
+    sigdict = list(sig.values())
     assert len(sigdict) == 1
-    some_value = next(iter(sig.values()))
+    some_value = next(iter(list(sig.values())))
     return len(some_value['sig'])
 
 
@@ -1028,7 +1028,7 @@ def validate_command(sigdict, args, verbose=False):
         # (so we can maybe give a more-useful error message)
         best_match_cnt = 0
         bestcmds = []
-        for cmdtag, cmd in sigdict.items():
+        for cmdtag, cmd in list(sigdict.items()):
             sig = cmd['sig']
             matched = matchnum(args, sig, partial=True)
             if matched > best_match_cnt:
@@ -1056,7 +1056,7 @@ def validate_command(sigdict, args, verbose=False):
         ex = None
         # for everything in bestcmds, look for a true match
         for cmdsig in bestcmds_sorted:
-            for cmd in cmdsig.values():
+            for cmd in list(cmdsig.values()):
                 sig = cmd['sig']
                 try:
                     valid_dict = validate(args, sig, flags=cmd.get('flags', 0))
@@ -1097,7 +1097,7 @@ def validate_command(sigdict, args, verbose=False):
             bestcmds = bestcmds[:10]
             print('no valid command found; {0} closest matches:'.format(len(bestcmds)), file=sys.stderr)
             for cmdsig in bestcmds:
-                for (cmdtag, cmd) in cmdsig.items():
+                for (cmdtag, cmd) in list(cmdsig.items()):
                     print(concise_sig(cmd['sig']), file=sys.stderr)
         return valid_dict
 

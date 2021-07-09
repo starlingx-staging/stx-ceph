@@ -85,7 +85,7 @@ def options_command_list():
         return 'CephString'
 
     cmd_list = []
-    for cmd, opt in _OPTIONS_COMMAND_MAP.items():
+    for cmd, opt in list(_OPTIONS_COMMAND_MAP.items()):
         if not opt['type']:
             cmd_list.append({
                 'cmd': '{}'.format(cmd),

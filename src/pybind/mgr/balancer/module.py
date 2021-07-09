@@ -291,7 +291,7 @@ class Module(MgrModule):
         self.log.warn("Handling command: '%s'" % str(command))
         if command['prefix'] == 'balancer status':
             s = {
-                'plans': self.plans.keys(),
+                'plans': list(self.plans.keys()),
                 'active': self.active,
                 'mode': self.get_config('mode', default_mode),
             }
@@ -477,7 +477,7 @@ class Module(MgrModule):
                 osd: cw * osd_weight[osd]
                 for osd,cw in six.iteritems(weight_map) if osd in osd_weight and cw > 0
             }
-            sum_w = sum(adjusted_map.values())
+            sum_w = sum(list(adjusted_map.values()))
             assert len(adjusted_map) == 0 or sum_w > 0
             pe.target_by_root[root] = { osd: w / sum_w
                                         for osd,w in six.iteritems(adjusted_map) }
@@ -618,7 +618,7 @@ class Module(MgrModule):
                 'pgs': pe.stats_by_root[r]['pgs']['score'],
                 'objects': pe.stats_by_root[r]['objects']['score'],
                 'bytes': pe.stats_by_root[r]['bytes']['score'],
-            } for r in pe.total_by_root.keys()
+            } for r in list(pe.total_by_root.keys())
         }
         self.log.debug('score_by_root %s' % pe.score_by_root)
 
@@ -754,7 +754,7 @@ class Module(MgrModule):
 
         # Make sure roots don't overlap their devices.  If so, we
         # can't proceed.
-        roots = pe.target_by_root.keys()
+        roots = list(pe.target_by_root.keys())
         self.log.debug('roots %s', roots)
         visited = {}
         overlap = {}
@@ -801,7 +801,7 @@ class Module(MgrModule):
                               (root, pools, key))
                 target = best_pe.target_by_root[root]
                 actual = best_pe.actual_by_root[root][key]
-                queue = sorted(actual.keys(),
+                queue = sorted(list(actual.keys()),
                                key=lambda osd: -abs(target[osd] - actual[osd]))
                 for osd in queue:
                     if orig_osd_weight[osd] == 0:
@@ -832,14 +832,14 @@ class Module(MgrModule):
                 # normalize weights under this root
                 root_weight = crush.get_item_weight(pe.root_ids[root])
                 root_sum = sum(b for a,b in six.iteritems(next_ws)
-                               if a in target.keys())
+                               if a in list(target.keys()))
                 if root_sum > 0 and root_weight > 0:
                     factor = root_sum / root_weight
                     self.log.debug('normalizing root %s %d, weight %f, '
                                    'ws sum %f, factor %f',
                                    root, pe.root_ids[root], root_weight,
                                    root_sum, factor)
-                    for osd in actual.keys():
+                    for osd in list(actual.keys()):
                         next_ws[osd] = next_ws[osd] / factor
 
             # recalc
