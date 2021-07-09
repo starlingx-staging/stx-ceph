@@ -16,8 +16,11 @@ class RequestId(RestController):
         """
         Show the information for the request id
         """
-        request = [x for x in context.instance.requests
-                   if x.id == self.request_id]
+        request = list(filter(
+            lambda x: x.id == self.request_id,
+            context.instance.requests
+        ))
+
         if len(request) != 1:
             response.status = 500
             return {'message': 'Unknown request id "{}"'.format(self.request_id)}
@@ -61,8 +64,10 @@ class Request(RestController):
         """
         num_requests = len(context.instance.requests)
 
-        context.instance.requests = [x for x in context.instance.requests
-                                     if not x.is_finished()]
+        context.instance.requests = list(filter(
+            lambda x: not x.is_finished(),
+            context.instance.requests
+        ))
         remaining = len(context.instance.requests)
         # Return the job statistics
         return {
