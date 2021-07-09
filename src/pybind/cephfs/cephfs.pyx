@@ -401,7 +401,7 @@ cdef class LibCephFS(object):
                 conffile = None
             self.conf_read_file(conffile)
         if conf is not None:
-            for key, value in conf.iteritems():
+            for key, value in iter(conf.items()):
                 self.conf_set(key, value)
 
     def conf_read_file(self, conffile=None):

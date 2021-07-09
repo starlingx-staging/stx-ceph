@@ -15,7 +15,7 @@ except ImportError:
         from itertools import tee
         a, b = tee(iterable)
         next(b, None)
-        return zip(a, b)
+        return list(zip(a, b))
 
 from .. import logger, mgr
 

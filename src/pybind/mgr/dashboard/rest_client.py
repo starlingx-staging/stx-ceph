@@ -495,7 +495,7 @@ class RestClient(object):
                 method = api_kwargs.get('method', None)
                 resp_structure = api_kwargs.get('resp_structure', None)
                 args_name = inspect.getargspec(func).args
-                args_dict = dict(zip(args_name[1:], args))
+                args_dict = dict(list(zip(args_name[1:], args)))
                 for key, val in kwargs:
                     args_dict[key] = val
                 return func(

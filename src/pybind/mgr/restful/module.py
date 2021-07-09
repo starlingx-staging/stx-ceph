@@ -158,37 +158,37 @@ class CommandsRequest(object):
     def __json__(self):
         return {
             'id': self.id,
-            'running': map(
+            'running': list(map(
                 lambda x: {
                     'command': x.command,
                     'outs': x.outs,
                     'outb': x.outb,
                 },
                 self.running
-            ),
-            'finished': map(
+            )),
+            'finished': list(map(
                 lambda x: {
                     'command': x.command,
                     'outs': x.outs,
                     'outb': x.outb,
                 },
                 self.finished
-            ),
-            'waiting': map(
-                lambda x: map(
+            )),
+            'waiting': list(map(
+                lambda x: list(map(
                     lambda y: common.humanify_command(y),
                     x
-                ),
+                )),
                 self.waiting
-            ),
-            'failed': map(
+            )),
+            'failed': list(map(
                 lambda x: {
                     'command': x.command,
                     'outs': x.outs,
                     'outb': x.outb,
                 },
                 self.failed
-            ),
+            )),
             'is_waiting': self.is_waiting(),
             'is_finished': self.is_finished(),
             'has_failed': self.has_failed(),
@@ -508,8 +508,8 @@ class Module(MgrModule):
 
 
     def get_osd_pools(self):
-        osds = dict(map(lambda x: (x['osd'], []), self.get('osd_map')['osds']))
-        pools = dict(map(lambda x: (x['pool'], x), self.get('osd_map')['pools']))
+        osds = dict(list(map(lambda x: (x['osd'], []), self.get('osd_map')['osds'])))
+        pools = dict(list(map(lambda x: (x['pool'], x), self.get('osd_map')['pools'])))
         crush_rules = self.get('osd_map_crush')['rules']
 
         osds_by_pool = {}
