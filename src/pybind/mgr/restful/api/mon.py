@@ -16,8 +16,11 @@ class MonName(RestController):
         """
         Show the information for the monitor name
         """
-        mon = [x for x in context.instance.get_mons()
-               if x['name'] == self.name]
+        mon = list(filter(
+            lambda x: x['name'] == self.name,
+            context.instance.get_mons()
+        ))
+
         if len(mon) != 1:
             response.status = 500
             return {'message': 'Failed to identify the monitor node "{}"'.format(self.name)}

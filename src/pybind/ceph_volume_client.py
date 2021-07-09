@@ -1344,7 +1344,7 @@ class CephFSVolumeClient(object):
                 mds_cap_tokens = [x.strip() for x in orig_mds_caps.split(",")]
                 osd_cap_tokens = [x.strip() for x in orig_osd_caps.split(",")]
 
-                for want_mds_cap, want_osd_cap in zip(want_mds_caps, want_osd_caps):
+                for want_mds_cap, want_osd_cap in list(zip(want_mds_caps, want_osd_caps)):
                     if want_mds_cap in mds_cap_tokens:
                         mds_cap_tokens.remove(want_mds_cap)
                         osd_cap_tokens.remove(want_osd_cap)

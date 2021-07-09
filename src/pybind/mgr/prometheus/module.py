@@ -169,7 +169,7 @@ class Metric(object):
 
         for labelvalues, value in self.value.items():
             if self.labelnames:
-                labels = zip(self.labelnames, labelvalues)
+                labels = list(zip(self.labelnames, labelvalues))
                 labels = ','.join('%s="%s"' % (k, v) for k, v in labels)
             else:
                 labels = ''
