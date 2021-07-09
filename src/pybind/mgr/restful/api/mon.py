@@ -16,10 +16,10 @@ class MonName(RestController):
         """
         Show the information for the monitor name
         """
-        mon = filter(
+        mon = list(filter(
             lambda x: x['name'] == self.name,
             context.instance.get_mons()
-        )
+        ))
 
         if len(mon) != 1:
             response.status = 500

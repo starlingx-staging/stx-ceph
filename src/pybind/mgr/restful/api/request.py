@@ -16,10 +16,10 @@ class RequestId(RestController):
         """
         Show the information for the request id
         """
-        request = filter(
+        request = list(filter(
             lambda x: x.id == self.request_id,
             context.instance.requests
-        )
+        ))
 
         if len(request) != 1:
             response.status = 500
@@ -66,10 +66,10 @@ class Request(RestController):
         """
         num_requests = len(context.instance.requests)
 
-        context.instance.requests = filter(
+        context.instance.requests = list(filter(
             lambda x: not x.is_finished(),
             context.instance.requests
-        )
+        ))
 
         # Return the job statistics
         return {
