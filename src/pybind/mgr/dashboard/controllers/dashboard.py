@@ -99,7 +99,7 @@ class Dashboard(BaseController):
         # Transform the `checks` dict into a list for the convenience
         # of rendering from javascript.
         checks = []
-        for k, v in health['checks'].items():
+        for k, v in list(health['checks'].items()):
             v['type'] = k
             checks.append(v)
 

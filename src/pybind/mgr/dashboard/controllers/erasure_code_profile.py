@@ -25,7 +25,7 @@ class ErasureCodeProfile(RESTController):
 
     def list(self):
         ret = []
-        for name, ecp in mgr.get('osd_map').get('erasure_code_profiles', {}).items():
+        for name, ecp in list(mgr.get('osd_map').get('erasure_code_profiles', {}).items()):
             ret.append(_serialize_ecp(name, ecp))
         return ret
 
@@ -44,7 +44,7 @@ class ErasureCodeProfile(RESTController):
         if ruleset_failure_domain:
             kwargs['ruleset_failure_domain'] = ruleset_failure_domain
 
-        profile = ['{}={}'.format(key, value) for key, value in kwargs.items()]
+        profile = ['{}={}'.format(key, value) for key, value in list(kwargs.items())]
         CephService.send_command('mon', 'osd erasure-code-profile set', name=name,
                                  profile=profile)
 

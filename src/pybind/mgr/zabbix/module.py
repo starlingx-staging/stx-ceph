@@ -36,7 +36,7 @@ class ZabbixSender(object):
 
         proc = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE)
 
-        for key, value in data.items():
+        for key, value in list(data.items()):
             proc.stdin.write('{0} ceph.{1} {2}\n'.format(hostname, key, value))
 
         stdout, stderr = proc.communicate()
@@ -112,11 +112,11 @@ class Module(MgrModule):
         self.fsid = self.get('mon_map')['fsid']
         self.log.debug('Found Ceph fsid %s', self.fsid)
 
-        for key, default in self.config_keys.items():
+        for key, default in list(self.config_keys.items()):
             self.set_config_option(key, self.get_config(key, default))
 
     def set_config_option(self, option, value):
-        if option not in self.config_keys.keys():
+        if option not in list(self.config_keys.keys()):
             raise RuntimeError('{0} is a unknown configuration '
                                'option'.format(option))
 
@@ -228,7 +228,7 @@ class Module(MgrModule):
 
         pg_summary = self.get('pg_summary')
         num_pg = 0
-        for state, num in pg_summary['all'].items():
+        for state, num in list(pg_summary['all'].items()):
             num_pg += num
 
         data['num_pg'] = num_pg

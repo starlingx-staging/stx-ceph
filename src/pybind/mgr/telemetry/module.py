@@ -132,7 +132,7 @@ class Module(MgrModule):
         return datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S.%f')
 
     def set_config_option(self, option, value):
-        if option not in self.config_keys.keys():
+        if option not in list(self.config_keys.keys()):
             raise RuntimeError('{0} is a unknown configuration '
                                'option'.format(option))
 
@@ -163,7 +163,7 @@ class Module(MgrModule):
         return True
 
     def init_module_config(self):
-        for key, default in self.config_keys.items():
+        for key, default in list(self.config_keys.items()):
             self.set_config_option(key, self.get_config(key, default))
 
         self.last_upload = self.get_store('last_upload', None)
@@ -184,7 +184,7 @@ class Module(MgrModule):
             metadata[key] = defaultdict(int)
 
         for osd in osd_map['osds']:
-            for k, v in self.get_metadata('osd', str(osd['osd'])).items():
+            for k, v in list(self.get_metadata('osd', str(osd['osd'])).items()):
                 if k not in keys:
                     continue
 
@@ -201,7 +201,7 @@ class Module(MgrModule):
             metadata[key] = defaultdict(int)
 
         for mon in mon_map['mons']:
-            for k, v in self.get_metadata('mon', mon['name']).items():
+            for k, v in list(self.get_metadata('mon', mon['name']).items()):
                 if k not in keys:
                     continue
 
@@ -272,7 +272,7 @@ class Module(MgrModule):
         }
 
         report['services'] = defaultdict(int)
-        for key, value in service_map['services'].items():
+        for key, value in list(service_map['services'].items()):
             report['services'][key] += 1
 
         return report

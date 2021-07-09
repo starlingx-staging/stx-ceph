@@ -50,7 +50,7 @@ class Summary(BaseController):
                 errors += 1
             elif daemon['health_color'] == 'warning':
                 warnings += 1
-        for _, pool in pools.items():
+        for _, pool in list(pools.items()):
             if pool['health_color'] == 'error':
                 errors += 1
             elif pool['health_color'] == 'warning':

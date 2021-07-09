@@ -157,7 +157,7 @@ class Metric(object):
             mtype=self.mtype,
         )
 
-        for labelvalues, value in self.value.items():
+        for labelvalues, value in list(self.value.items()):
             if self.labelnames:
                 labels = list(zip(self.labelnames, labelvalues))
                 labels = ','.join('%s="%s"' % (k, v) for k, v in labels)
@@ -361,7 +361,7 @@ class Module(MgrModule):
                 fs['mdsmap']['fs_name']
             ))
             self.log.debug('mdsmap: {}'.format(fs['mdsmap']))
-            for gid, daemon in fs['mdsmap']['info'].items():
+            for gid, daemon in list(fs['mdsmap']['info'].items()):
                 id_ = daemon['name']
                 host_version = servers.get((id_, 'mds'), ('',''))
                 self.metrics['mds_metadata'].set(1, (
@@ -513,7 +513,7 @@ class Module(MgrModule):
             self.metrics['pool_metadata'].set(1, (pool['pool'], pool['pool_name']))
 
         # Populate rgw_metadata
-        for key, value in servers.items():
+        for key, value in list(servers.items()):
             service_id, service_type = key
             if service_type != 'rgw':
                 continue
@@ -531,7 +531,7 @@ class Module(MgrModule):
 
     def collect(self):
         # Clear the metrics before scraping
-        for k in self.metrics.keys():
+        for k in list(self.metrics.keys()):
             self.metrics[k].clear()
 
         self.get_health()
@@ -543,8 +543,8 @@ class Module(MgrModule):
         self.get_pg_status()
         self.get_num_objects()
 
-        for daemon, counters in self.get_all_perf_counters().items():
-            for path, counter_info in counters.items():
+        for daemon, counters in list(self.get_all_perf_counters().items()):
+            for path, counter_info in list(counters.items()):
                 # Skip histograms, they are represented by long running avgs
                 stattype = self._stattype_to_str(counter_info['type'])
                 if not stattype or stattype == 'histogram':
@@ -586,8 +586,8 @@ class Module(MgrModule):
                     self.metrics[path].set(value, (daemon,))
 
         # Return formatted metrics and clear no longer used data
-        _metrics = [m.str_expfmt() for m in self.metrics.values()]
-        for k in self.metrics.keys():
+        _metrics = [m.str_expfmt() for m in list(self.metrics.values())]
+        for k in list(self.metrics.keys()):
             self.metrics[k].clear()
 
         return ''.join(_metrics) + '\n'

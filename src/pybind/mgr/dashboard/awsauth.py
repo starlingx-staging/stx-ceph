@@ -116,7 +116,7 @@ class S3Auth(AuthBase):
                     lk = lk.decode('utf-8')
             except UnicodeDecodeError:
                 pass
-            if headers[key] and (lk in interesting_headers.keys()
+            if headers[key] and (lk in list(interesting_headers.keys())
                                  or lk.startswith('x-amz-')):
                 interesting_headers[lk] = headers[key].strip()
 
@@ -129,7 +129,7 @@ class S3Auth(AuthBase):
                 interesting_headers['date'] = ''
 
         buf = '%s\n' % method
-        for key in sorted(interesting_headers.keys()):
+        for key in sorted(list(interesting_headers.keys())):
             val = interesting_headers[key]
             if key.startswith('x-amz-'):
                 buf += '%s:%s\n' % (key, val)

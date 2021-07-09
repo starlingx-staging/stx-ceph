@@ -43,7 +43,7 @@ class RgwDaemon(RESTController):
 
     def list(self):
         daemons = []
-        for hostname, server in CephService.get_service_map('rgw').items():
+        for hostname, server in list(CephService.get_service_map('rgw').items()):
             for service in server['services']:
                 metadata = service['metadata']
 

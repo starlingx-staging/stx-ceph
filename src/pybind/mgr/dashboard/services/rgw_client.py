@@ -63,7 +63,7 @@ def _determine_rgw_addr():
         raise LookupError('No RGW found.')
     daemon = None
     daemons = service_map['services']['rgw']['daemons']
-    for key in daemons.keys():
+    for key in list(daemons.keys()):
         if dict_contains_path(daemons[key], ['metadata', 'frontend_config#0']):
             daemon = daemons[key]
             break

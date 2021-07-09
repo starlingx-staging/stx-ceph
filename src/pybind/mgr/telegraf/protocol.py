@@ -17,7 +17,7 @@ class Line(object):
         else:
             metric_values = self.values
 
-        sorted_values = sorted(metric_values.items())
+        sorted_values = sorted(list(metric_values.items()))
         sorted_values = [(k, v) for k, v in sorted_values if v is not None]
 
         return u','.join(u'{0}={1}'.format(format_string(k), format_value(v)) for k, v in sorted_values)
@@ -26,7 +26,7 @@ class Line(object):
         if not self.tags:
             self.tags = dict()
 
-        sorted_tags = sorted(self.tags.items())
+        sorted_tags = sorted(list(self.tags.items()))
 
         return u','.join(u'{0}={1}'.format(format_string(k), format_string(v)) for k, v in sorted_tags)
 

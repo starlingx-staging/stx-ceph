@@ -196,7 +196,7 @@ class Module(MgrModule):
             svc_type, svc_id = daemon.split(".", 1)
             metadata = self.get_metadata(svc_type, svc_id)
 
-            for path, counter_info in counters.items():
+            for path, counter_info in list(counters.items()):
                 if counter_info['type'] & self.PERFCOUNTER_HISTOGRAM:
                     continue
 
@@ -219,7 +219,7 @@ class Module(MgrModule):
         return data
 
     def set_config_option(self, option, value):
-        if option not in self.config_keys.keys():
+        if option not in list(self.config_keys.keys()):
             raise RuntimeError('{0} is a unknown configuration '
                                'option'.format(option))
 

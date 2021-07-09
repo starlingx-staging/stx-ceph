@@ -225,8 +225,8 @@ class DaemonWatcher(object):
         current_fit = OrderedDict()
         if self.termsize.changed or not self._stats_that_fit:
             width = 0
-            for section_name, names in self._stats.items():
-                for name, stat_data in names.items():
+            for section_name, names in list(self._stats.items()):
+                for name, stat_data in list(names.items()):
                     width += self.col_width(stat_data) + 1
                     if width > self.termsize.cols:
                         break
@@ -248,9 +248,9 @@ class DaemonWatcher(object):
         """
         header = ""
         stats, _ = self.get_stats_that_fit()
-        for section_name, names in stats.items():
+        for section_name, names in list(stats.items()):
             section_width = \
-                sum([self.col_width(x) + 1 for x in names.values()]) - 1
+                sum([self.col_width(x) + 1 for x in list(names.values())]) - 1
             pad = max(section_width - len(section_name), 0)
             pad_prefix = pad // 2
             header += (pad_prefix * '-')
@@ -261,8 +261,8 @@ class DaemonWatcher(object):
         ostr.write(self.colorize(header, self.BLUE, True))
 
         sub_header = ""
-        for section_name, names in stats.items():
-            for stat_name, stat_nick in names.items():
+        for section_name, names in list(stats.items()):
+            for stat_name, stat_nick in list(names.items()):
                 sub_header += self.UNDERLINE_SEQ \
                               + self.colorize(
                                     stat_nick.ljust(self.col_width(stat_nick)),
@@ -281,8 +281,8 @@ class DaemonWatcher(object):
         fit, changed = self.get_stats_that_fit()
         if changed:
             self._print_headers(ostr)
-        for section_name, names in fit.items():
-            for stat_name, stat_nick in names.items():
+        for section_name, names in list(fit.items()):
+            for stat_name, stat_nick in list(names.items()):
                 stat_type = self._schema[section_name][stat_name]['type']
                 if bool(stat_type & COUNTER):
                     n = max(dump[section_name][stat_name] -
@@ -341,8 +341,8 @@ class DaemonWatcher(object):
 
         # Build list of which stats we will display
         self._stats = OrderedDict()
-        for section_name, section_stats in self._schema.items():
-            for name, schema_data in section_stats.items():
+        for section_name, section_stats in list(self._schema.items()):
+            for name, schema_data in list(section_stats.items()):
                 prio = schema_data.get('priority', 0)
                 if self._should_include(section_name, name, prio):
                     if section_name not in self._stats:
@@ -402,8 +402,8 @@ class DaemonWatcher(object):
         table.align['nick'] = 'l'
         table.align['prio'] = 'r'
         self._load_schema()
-        for section_name, section_stats in self._stats.items():
-            for name, nick in section_stats.items():
+        for section_name, section_stats in list(self._stats.items()):
+            for name, nick in list(section_stats.items()):
                 prio = self._schema[section_name][name].get('priority') or 0
                 table.add_row((section_name, name, nick, prio))
         ostr.write(table.get_string(hrules=HEADER) + '\n')

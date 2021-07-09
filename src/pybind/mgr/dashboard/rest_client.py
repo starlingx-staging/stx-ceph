@@ -183,7 +183,7 @@ class _ResponseValidator(object):
             if key == '*':
                 continue
             elif key == '':  # check all keys
-                for k in resp.keys():
+                for k in list(resp.keys()):
                     _ResponseValidator._validate_key(k, level_next, resp)
             else:
                 _ResponseValidator._validate_key(key, level_next, resp)

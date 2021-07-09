@@ -166,7 +166,7 @@ class Module(MgrModule):
         self.set_store_json("testjsonkey", {"testblob": 2})
         assert self.get_store_json("testjsonkey") == {"testblob": 2}
 
-        assert sorted(self.get_store_prefix("test").keys()) == sorted(
+        assert sorted(list(self.get_store_prefix("test").keys())) == sorted(
                 list({"testkey", "testjsonkey"} | existing_keys))
 
 

@@ -15,7 +15,7 @@ class Pool(RESTController):
     @classmethod
     def _serialize_pool(cls, pool, attrs):
         if not attrs or not isinstance(attrs, list):
-            attrs = pool.keys()
+            attrs = list(pool.keys())
 
         crush_rules = {r['rule_id']: r["rule_name"] for r in mgr.get('osd_map_crush')['rules']}
 
@@ -76,7 +76,7 @@ class Pool(RESTController):
             for app in application_metadata.split(','):
                 CephService.send_command('mon', 'osd pool application enable', pool=pool, app=app)
 
-        for key, value in kwargs.items():
+        for key, value in list(kwargs.items()):
             CephService.send_command('mon', 'osd pool set', pool=pool, var=key, val=value)
 
     @cherrypy.tools.json_out()
@@ -90,7 +90,7 @@ class Pool(RESTController):
 
         def all_bluestore():
             return all(o['osd_objectstore'] == 'bluestore'
-                       for o in mgr.get('osd_metadata').values())
+                       for o in list(mgr.get('osd_metadata').values()))
 
         def compression_enum(conf_name):
             return [o['enum_values'] for o in mgr.get('config_options')['options']

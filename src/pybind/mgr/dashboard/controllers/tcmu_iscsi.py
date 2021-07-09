@@ -73,7 +73,7 @@ class TcmuIscsi(RESTController):
 
         # clear up races w/ tcmu-runner clients that haven't detected
         # loss of optimized path
-        for image in images.values():
+        for image in list(images.values()):
             optimized_daemon = image.get('optimized_daemon', None)
             if optimized_daemon:
                 for daemon_name in image['optimized_paths']:
@@ -85,6 +85,6 @@ class TcmuIscsi(RESTController):
                 image['optimized_paths'] = [optimized_daemon]
 
         return {
-            'daemons': sorted(daemons.values(), key=lambda d: d['server_hostname']),
-            'images': sorted(images.values(), key=lambda i: ['id']),
+            'daemons': sorted(list(daemons.values()), key=lambda d: d['server_hostname']),
+            'images': sorted(list(images.values()), key=lambda i: ['id']),
         }

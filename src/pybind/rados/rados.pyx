@@ -717,7 +717,7 @@ cdef class Rados(object):
         self.state = "configuring"
         # order is important: conf_defaults, then conffile, then conf
         if conf_defaults:
-            for key, value in conf_defaults.items():
+            for key, value in list(conf_defaults.items()):
                 self.conf_set(key, value)
         if conffile is not None:
             # read the default conf file when '' is given
@@ -725,7 +725,7 @@ cdef class Rados(object):
                 conffile = None
             self.conf_read_file(conffile)
         if conf:
-            for key, value in conf.items():
+            for key, value in list(conf.items()):
                 self.conf_set(key, value)
 
     def require_state(self, *args):
@@ -1568,7 +1568,7 @@ Rados object in state %s." % self.state)
         """
         service = cstr(service, 'service')
         daemon = cstr(daemon, 'daemon')
-        metadata_dict = '\0'.join(chain.from_iterable(metadata.items()))
+        metadata_dict = '\0'.join(chain.from_iterable(list(metadata.items())))
         metadata_dict += '\0'
         cdef:
             char *_service = service
@@ -1582,7 +1582,7 @@ Rados object in state %s." % self.state)
 
     @requires(('metadata', dict))
     def service_daemon_update(self, status):
-        status_dict = '\0'.join(chain.from_iterable(status.items()))
+        status_dict = '\0'.join(chain.from_iterable(list(status.items())))
         status_dict += '\0'
         cdef:
             char *_status = status_dict

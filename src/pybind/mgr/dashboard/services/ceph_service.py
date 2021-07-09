@@ -47,7 +47,7 @@ class CephService(object):
     @classmethod
     def get_service_list(cls, service_name):
         service_map = cls.get_service_map(service_name)
-        return [svc for _, svcs in service_map.items() for svc in svcs['services']]
+        return [svc for _, svcs in list(service_map.items()) for svc in svcs['services']]
 
     @classmethod
     def get_service(cls, service_name, service_id):
@@ -89,8 +89,8 @@ class CephService(object):
         df = mgr.get("df")
         pool_stats_dict = dict([(p['id'], p['stats']) for p in df['pools']])
         now = time.time()
-        for pool_id, stats in pool_stats_dict.items():
-            for stat_name, stat_val in stats.items():
+        for pool_id, stats in list(pool_stats_dict.items()):
+            for stat_name, stat_val in list(stats.items()):
                 pool_stats[pool_id][stat_name].appendleft((now, stat_val))
 
         for pool in pools:
@@ -103,7 +103,7 @@ class CephService(object):
                     return differentiate(*series[0:1])
                 return 0
 
-            for stat_name, stat_series in stats.items():
+            for stat_name, stat_series in list(stats.items()):
                 s[stat_name] = {
                     'latest': stat_series[0][1],
                     'rate': get_rate(stat_series),
@@ -144,7 +144,7 @@ class CephService(object):
             "prefix": prefix,
             "format": "json",
         }
-        argdict.update({k: v for k, v in kwargs.items() if v})
+        argdict.update({k: v for k, v in list(kwargs.items()) if v})
 
         result = CommandResult("")
         mgr.send_command(result, srv_type, srv_spec, json.dumps(argdict), "")
