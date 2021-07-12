@@ -30,6 +30,7 @@ import logging
 import os
 import platform
 import re
+import six
 import subprocess
 import stat
 import sys
@@ -4346,7 +4347,10 @@ def get_dev_fs(dev):
         if 'TYPE' in fscheck:
             fstype = fscheck.split()[1].split('"')[1]
             if isinstance(fstype, str):
-                fstype = fstype.translate(None, " \\")
+                if six.PY2:
+                    fstype = fstype.translate(None, " \\")
+                else:
+                    fstype = fstype.translate({ord(' '): None, ord('\\'): None})
             elif isinstance(fstype, unicode):
                 fstype = fstype.translate({ord(u' '): None, ord(u'\\'): None})
             return fstype
