@@ -336,8 +336,7 @@ CEPH_RBD_API void rbd_linked_image_spec_list_cleanup(
 CEPH_RBD_API void rbd_snap_spec_cleanup(rbd_snap_spec_t *snap);
 
 /* images */
-CEPH_RBD_API int rbd_list(rados_ioctx_t io, char *names, size_t *size)
-    __attribute__((deprecated));
+CEPH_RBD_API int rbd_list(rados_ioctx_t io, char *names, size_t *size);
 CEPH_RBD_API int rbd_list2(rados_ioctx_t io, rbd_image_spec_t* images,
                            size_t *max_images);
 
