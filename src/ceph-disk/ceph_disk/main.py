@@ -2472,9 +2472,12 @@ class PrepareJournal(PrepareSpace):
 
     def __init__(self, args):
         self.name = 'journal'
-        (self.allows_journal,
-         self.wants_journal,
-         self.needs_journal) = check_journal_reqs(args)
+        # ceph-osd now tries to identify the OSD type by checking 
+        # the disk, but at this stage we did not create anything
+        # because of that we assume the values for a Filestore OSD
+        self.allows_journal = True
+        self.wants_journal = True
+        self.needs_journal = False
 
         if args.journal and not self.allows_journal:
             raise Error('journal specified but not allowed by osd backend')
@@ -3212,6 +3215,7 @@ def mkfs(
                 '--osd-data', path,
                 '--osd-journal', os.path.join(path, 'journal'),
                 '--osd-uuid', fsid,
+                '--osd-objectstore', 'filestore',
                  # don't run as ceph
             ],
         )
