@@ -1589,11 +1589,16 @@ def update_partition(dev, description):
     LOG.debug('Calling partprobe on %s device %s', description, dev)
     partprobe_ok = False
     error = 'unknown error'
-    partprobe = _get_command_executable(['partprobe'])[0]
+    if is_mpath(dev):
+        probe_exec = _get_command_executable(['kpartx'])[0]
+        cmd = ['flock', '-s', dev, probe_exec, '-a','-p','-part', dev]
+    else:
+        probe_exec = _get_command_executable(['partprobe'])[0]
+        cmd = ['flock', '-s', dev, probe_exec, dev]
     for i in range(5):
         command_check_call(['udevadm', 'settle', '--timeout=600'])
         try:
-            _check_output(['flock', '-s', dev, partprobe, dev])
+            _check_output(cmd)
             partprobe_ok = True
             break
         except subprocess.CalledProcessError as e:
