@@ -4494,7 +4494,8 @@ def list_format_more_osd_info_plain(dev):
 
 def list_format_dev_plain(dev, prefix=''):
     desc = []
-    if dev['ptype'] == PTYPE['regular']['osd']['ready']:
+    if dev['ptype'] in (PTYPE['regular']['osd']['ready']
+                        PTYPE['mpath']['osd']['ready']):
         desc = (['ceph data', dev['state']] +
                 list_format_more_osd_info_plain(dev))
     elif dev['ptype'] in (PTYPE['regular']['lockbox']['ready'],
@@ -4514,7 +4515,7 @@ def list_format_dev_plain(dev, prefix=''):
         else:
             desc = ['ceph data (dmcrypt %s)' % dmcrypt['type'],
                     'holders: ' + ','.join(dmcrypt['holders'])]
-    elif Ptype.is_regular_space(dev['ptype']):
+    elif Ptype.is_regular_space(dev['ptype']) or Ptype.is_mpath_space(dev['ptype']):
         name = Ptype.space_ptype_to_name(dev['ptype'])
         desc.append('ceph ' + name)
         if dev.get(name + '_for'):
