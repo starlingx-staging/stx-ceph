@@ -4494,7 +4494,7 @@ def list_format_more_osd_info_plain(dev):
 
 def list_format_dev_plain(dev, prefix=''):
     desc = []
-    if dev['ptype'] in (PTYPE['regular']['osd']['ready']
+    if dev['ptype'] in (PTYPE['regular']['osd']['ready'],
                         PTYPE['mpath']['osd']['ready']):
         desc = (['ceph data', dev['state']] +
                 list_format_more_osd_info_plain(dev))
