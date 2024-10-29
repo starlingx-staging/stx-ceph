@@ -40,7 +40,7 @@ execute_ceph_cmd() {
     local cmd=$3
     local cmd="timeout $WAIT_FOR_CMD $cmd"
     set -o pipefail
-    eval "$cmd &>$DATA_PATH/.ceph_cmd_out"
+    eval "$cmd &>$DATA_PATH/.ceph_cmd_out_$$"
     errcode=$?
     set +o pipefail
     if [ $errcode -eq 124 ]; then  # 'timeout' returns 124 when timing out
@@ -48,7 +48,8 @@ execute_ceph_cmd() {
         CEPH_FAILURE="true"
         echo ""; return 1
     fi
-    local output=$(cat $DATA_PATH/.ceph_cmd_out)
+    local output=$(cat $DATA_PATH/.ceph_cmd_out_$$)
+    rm -f $DATA_PATH/.ceph_cmd_out_$$
     if [ -z "$output" ] || [ $errcode -ne 0 ]; then
         wlog $name "WARN" "Error executing: $cmd errorcode: $errcode output: $output"
         echo ""; return 1
